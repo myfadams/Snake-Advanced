@@ -1,62 +1,358 @@
-
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// The Head leads the snake: it moves forward continuously and steers
+/// toward the mouse. Every body segment continuously flows along the
+/// exact path the Head has already travelled (a recorded position
+/// history), instead of chasing the transform in front of it. That is
+/// what removes stationary segments, corner-cutting on turns, and any
+/// snapping/teleporting.
+///
+/// Spacing between neighbours (head-to-first-body, and body-to-body) is
+/// measured automatically from each segment's actual rendered/collider
+/// size, so segments of different scales (e.g. a bigger head, smaller
+/// body cubes) sit just touching instead of leaving a manual, guessed gap.
+/// </summary>
 public class PlayerMovement : MonoBehaviour
 {
+    [Header("Snake")]
     [SerializeField] private Transform head;
+
+    [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float turnSpeed = 10f;
+    [Tooltip("How cautiously the snake turns, as a multiple of its own body radius. 1 = turns exactly as tight as physically possible without segments overlapping (maximum responsiveness, zero safety margin). Higher = a little more margin (smoother, slightly slower turns); lower than 1 = snappier but risks a touch of visual overlap on the sharpest turns. The actual turn speed (deg/sec) is derived automatically from this, moveSpeed, and the segments' measured size, so turning stays as fast as possible while remaining safe - even if you resize things later.")]
+    [SerializeField] private float turnTightness = 1.5f;
+
+    [Header("Body Spacing")]
+    [Tooltip("Extra distance added between every pair of neighbouring segments, on top of their auto-measured sizes. 0 = segments just touch, negative = slight overlap (often looks more seamless on curves), positive = a visible gap.")]
+    [SerializeField] private float extraSpacing = 0f;
+    [Tooltip("Radius used for a segment only if it has no Renderer or Collider to measure.")]
+    [SerializeField] private float fallbackSegmentRadius = 0.15f;
+
+    [Header("Path History")]
+    [Tooltip("A new history point is recorded once the head has moved at least this far since the last one. Smaller = smoother curves, but more points stored.")]
+    [SerializeField] private float historyPointSpacing = 0.05f;
+    [Tooltip("Extra path length kept behind the last body segment, as a safety margin so interpolation never runs out of history.")]
+    [SerializeField] private float historyBuffer = 1f;
+
+    private readonly List<Transform> bodySegments = new List<Transform>();
+
+    // Cumulative arc-length distance from the head to each body segment,
+    // in hierarchy order. cumulativeDistances[i] is how far bodySegments[i]
+    // should sit behind the head, measured along the path.
+    private readonly List<float> cumulativeDistances = new List<float>();
+
+    // Recorded head positions over time.
+    // Index 0 = oldest / farthest behind. Last index = newest / closest to the head.
+    private readonly List<Vector3> pathHistory = new List<Vector3>();
+
+    private float requiredHistoryLength;
+
+    // The largest measured radius among the head and all body segments,
+    // used to derive a safe turn speed automatically.
+    private float maxSegmentRadius = 0.1f;
+
+    private void OnValidate()
+    {
+        historyPointSpacing = Mathf.Max(historyPointSpacing, 0.001f);
+        historyBuffer = Mathf.Max(historyBuffer, 0f);
+        fallbackSegmentRadius = Mathf.Max(fallbackSegmentRadius, 0.01f);
+        turnTightness = Mathf.Max(turnTightness, 0.1f);
+    }
+
+    private void Start()
+    {
+        RefreshBodySegments();
+    }
 
     private void Update()
     {
-        MoveForward();
+        if (head == null)
+            return;
+
         TurnHeadWithMouse();
+        MoveHead();
+        RecordHistoryPoint();
+        MoveBodyAlongPath();
     }
 
-    private void MoveForward()
+    /// <summary>
+    /// Re-scans the hierarchy for body segments, re-measures spacing from
+    /// their current sizes, and reseeds the path history in a straight
+    /// line behind the head. Call this again at runtime if segments are
+    /// added/removed (e.g. the snake grows) or resized.
+    /// </summary>
+    public void RefreshBodySegments()
     {
-        // Move the entire snake in the direction the head is facing
-        transform.position += head.forward * moveSpeed * Time.deltaTime;
+        FindBodySegments();
+        ComputeSegmentSpacing();
+
+        float lastDistance = cumulativeDistances.Count > 0
+            ? cumulativeDistances[cumulativeDistances.Count - 1]
+            : 0f;
+
+        requiredHistoryLength = lastDistance + historyBuffer;
+
+        SeedInitialHistory();
+        MoveBodyAlongPath();
+    }
+
+    private void FindBodySegments()
+    {
+        bodySegments.Clear();
+
+        foreach (Transform child in transform)
+        {
+            if (child != head)
+            {
+                bodySegments.Add(child);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds cumulativeDistances so each segment sits exactly
+    /// touching (or overlapping/gapped by extraSpacing) the one in front
+    /// of it, based on their real measured sizes.
+    /// </summary>
+    private void ComputeSegmentSpacing()
+    {
+        cumulativeDistances.Clear();
+
+        if (head == null)
+            return;
+
+        float previousRadius = GetSegmentRadius(head);
+        float runningDistance = 0f;
+        maxSegmentRadius = previousRadius;
+
+        for (int i = 0; i < bodySegments.Count; i++)
+        {
+            float radius = GetSegmentRadius(bodySegments[i]);
+            float gap = Mathf.Max(previousRadius + radius + extraSpacing, 0.01f);
+
+            runningDistance += gap;
+            cumulativeDistances.Add(runningDistance);
+
+            previousRadius = radius;
+            maxSegmentRadius = Mathf.Max(maxSegmentRadius, radius);
+        }
+    }
+
+    /// <summary>
+    /// The fastest the head can turn (in degrees/sec) without the path
+    /// curving tighter than the snake's own body can follow without
+    /// overlapping. Derived from moveSpeed, turnTightness, and the
+    /// largest measured segment radius - so it adapts automatically if
+    /// moveSpeed or segment sizes change.
+    /// </summary>
+    private float GetSafeTurnSpeedDegreesPerSecond()
+    {
+        float minTurnRadius = Mathf.Max(maxSegmentRadius * turnTightness, 0.01f);
+        float turnSpeedRadiansPerSecond = moveSpeed / minTurnRadius;
+        return turnSpeedRadiansPerSecond * Mathf.Rad2Deg;
+    }
+
+    /// <summary>
+    /// Approximates a segment's "radius" in the horizontal plane from its
+    /// real rendered/collider size (world space, so scale is included).
+    /// Falls back to fallbackSegmentRadius if neither is present.
+    /// </summary>
+    private float GetSegmentRadius(Transform segment)
+    {
+        Renderer[] renderers = segment.GetComponentsInChildren<Renderer>();
+
+        if (renderers.Length > 0)
+        {
+            Bounds combined = renderers[0].bounds;
+
+            for (int i = 1; i < renderers.Length; i++)
+            {
+                combined.Encapsulate(renderers[i].bounds);
+            }
+
+            return Mathf.Max(combined.size.x, combined.size.z) * 0.5f;
+        }
+
+        Collider[] colliders = segment.GetComponentsInChildren<Collider>();
+
+        if (colliders.Length > 0)
+        {
+            Bounds combined = colliders[0].bounds;
+
+            for (int i = 1; i < colliders.Length; i++)
+            {
+                combined.Encapsulate(colliders[i].bounds);
+            }
+
+            return Mathf.Max(combined.size.x, combined.size.z) * 0.5f;
+        }
+
+        return fallbackSegmentRadius;
     }
 
     private void TurnHeadWithMouse()
     {
-        if (Mouse.current == null || head == null)
+        if (Mouse.current == null)
             return;
 
-        // Get mouse position on the screen
+        Camera mainCamera = Camera.main;
+
+        if (mainCamera == null)
+            return;
+
         Vector2 mousePosition = Mouse.current.position.ReadValue();
+        Ray ray = mainCamera.ScreenPointToRay(mousePosition);
 
-        // Shoot a ray from the camera through the mouse
-        Ray ray = Camera.main.ScreenPointToRay(mousePosition);
-
-        // Invisible horizontal ground plane at Y = 0
+        // Horizontal plane at Y = 0
         Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
 
         if (groundPlane.Raycast(ray, out float distance))
         {
-            // Get the mouse's position in the game world
             Vector3 mouseWorldPosition = ray.GetPoint(distance);
-
-            // Direction from the head toward the mouse
             Vector3 direction = mouseWorldPosition - head.position;
 
-            // Only rotate around the Y axis
+            // Only rotate around Y so the snake stays flat.
             direction.y = 0f;
 
-            if (direction.sqrMagnitude > 0.01f)
+            if (direction.sqrMagnitude > 0.0001f)
             {
-                // Calculate the rotation toward the mouse
                 Quaternion targetRotation = Quaternion.LookRotation(direction);
-
-                // Smoothly rotate the head
-                head.rotation = Quaternion.Slerp(
+                head.rotation = Quaternion.RotateTowards(
                     head.rotation,
                     targetRotation,
-                    turnSpeed * Time.deltaTime
+                    GetSafeTurnSpeedDegreesPerSecond() * Time.deltaTime
                 );
             }
         }
+    }
+
+    private void MoveHead()
+    {
+        // The head leads: the whole snake advances along whatever
+        // direction the head currently faces.
+        transform.position += head.forward * moveSpeed * Time.deltaTime;
+    }
+
+    private void RecordHistoryPoint()
+    {
+        if (pathHistory.Count == 0)
+        {
+            pathHistory.Add(head.position);
+            return;
+        }
+
+        float distanceFromLastPoint = Vector3.Distance(
+            head.position,
+            pathHistory[pathHistory.Count - 1]
+        );
+
+        if (distanceFromLastPoint >= historyPointSpacing)
+        {
+            pathHistory.Add(head.position);
+            TrimHistory();
+        }
+    }
+
+    private void TrimHistory()
+    {
+        float totalLength = 0f;
+        Vector3 previous = head.position;
+
+        for (int i = pathHistory.Count - 1; i >= 0; i--)
+        {
+            totalLength += Vector3.Distance(previous, pathHistory[i]);
+            previous = pathHistory[i];
+
+            if (totalLength > requiredHistoryLength)
+            {
+                // Keep one extra point before this one so interpolation
+                // at the boundary always has two points to work with.
+                int keepFrom = Mathf.Max(i - 1, 0);
+
+                if (keepFrom > 0)
+                {
+                    pathHistory.RemoveRange(0, keepFrom);
+                }
+
+                return;
+            }
+        }
+    }
+
+    private void SeedInitialHistory()
+    {
+        pathHistory.Clear();
+
+        if (head == null)
+            return;
+
+        Vector3 backwards = -head.forward;
+        int pointsNeeded = Mathf.CeilToInt(requiredHistoryLength / historyPointSpacing) + 1;
+
+        // Oldest first, newest (closest to the head) last - this lays
+        // the body out in a straight line behind the head at start.
+        for (int i = pointsNeeded; i >= 1; i--)
+        {
+            pathHistory.Add(head.position + backwards * (historyPointSpacing * i));
+        }
+    }
+
+    private void MoveBodyAlongPath()
+    {
+        if (bodySegments.Count == 0 || head == null)
+            return;
+
+        Vector3 aheadPosition = head.position;
+
+        for (int i = 0; i < bodySegments.Count; i++)
+        {
+            Transform segment = bodySegments[i];
+            float targetDistance = cumulativeDistances[i];
+
+            Vector3 targetPosition = GetPointAtDistance(targetDistance);
+            targetPosition.y = segment.position.y;
+
+            // Face the point ahead of this segment on the path (the head,
+            // or the previous segment) - never the mouse directly.
+            Vector3 facing = aheadPosition - targetPosition;
+            facing.y = 0f;
+
+            if (facing.sqrMagnitude > 0.0001f)
+            {
+                segment.rotation = Quaternion.LookRotation(facing.normalized);
+            }
+
+            segment.position = targetPosition;
+            aheadPosition = targetPosition;
+        }
+    }
+
+    private Vector3 GetPointAtDistance(float distance)
+    {
+        Vector3 previousPoint = head.position;
+        float distanceCovered = 0f;
+
+        for (int i = pathHistory.Count - 1; i >= 0; i--)
+        {
+            Vector3 currentPoint = pathHistory[i];
+            float segmentLength = Vector3.Distance(previousPoint, currentPoint);
+
+            if (distanceCovered + segmentLength >= distance)
+            {
+                float remaining = distance - distanceCovered;
+                float t = segmentLength > 0.0001f ? remaining / segmentLength : 0f;
+                return Vector3.Lerp(previousPoint, currentPoint, t);
+            }
+
+            distanceCovered += segmentLength;
+            previousPoint = currentPoint;
+        }
+
+        // Not enough recorded history yet - fall back to the farthest
+        // point currently available.
+        return previousPoint;
     }
 }

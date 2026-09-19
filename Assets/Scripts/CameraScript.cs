@@ -1,3 +1,4 @@
+
 using UnityEngine;
 
 public class CameraFollow : MonoBehaviour
@@ -11,6 +12,7 @@ public class CameraFollow : MonoBehaviour
     {
         if (player != null)
         {
+            // Remember the camera's starting position relative to the player
             offset = transform.position - player.position;
         }
     }
@@ -20,6 +22,7 @@ public class CameraFollow : MonoBehaviour
         if (player == null)
             return;
 
+        // Follow the Player's position
         Vector3 targetPosition = player.position + offset;
 
         transform.position = Vector3.Lerp(

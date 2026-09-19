@@ -530,7 +530,7 @@ Transform:
   m_GameObject: {fileID: 1295684224}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.4429, z: -0.12198}
+  m_LocalPosition: {x: 0, y: 0.941, z: -0.12198}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -551,7 +551,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
   head: {fileID: 1902416835}
   moveSpeed: 1
-  turnSpeed: 10
+  turnTightness: 1.5
+  extraSpacing: 0
+  fallbackSegmentRadius: 0.15
+  historyPointSpacing: 0.05
+  historyBuffer: 1
 --- !u!4 &1902416835 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8654402615346478908, guid: afded2319fc81ae449015179153fc60e, type: 3}
@@ -568,6 +572,26 @@ PrefabInstance:
     - target: {fileID: 396630054247602656, guid: afded2319fc81ae449015179153fc60e, type: 3}
       propertyPath: m_Name
       value: head
+      objectReference: {fileID: 0}
+    - target: {fileID: 5701566600870806743, guid: afded2319fc81ae449015179153fc60e, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: 5701566600870806743, guid: afded2319fc81ae449015179153fc60e, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: 5701566600870806743, guid: afded2319fc81ae449015179153fc60e, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5701566600870806743, guid: afded2319fc81ae449015179153fc60e, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5701566600870806743, guid: afded2319fc81ae449015179153fc60e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8654402615346478908, guid: afded2319fc81ae449015179153fc60e, type: 3}
       propertyPath: m_LocalPosition.x
