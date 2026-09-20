@@ -1,16 +1,88 @@
+using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Central source of truth for the game's block values and their associated colors.
+/// Attach to: Game/GameManager
+/// Other scripts read from GameManager.Instance instead of defining their own values.
+/// </summary>
 public class GameManager : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    public static GameManager Instance { get; private set; }
+
+    // The fixed set of valid block values. This is the single source of truth -
+    // PickupManager and Pickup should never hardcode their own copy of this list.
+    private static readonly int[] BlockValues = { 2, 4, 8, 16 };
+
+    [Header("Block Colors")]
+    [Tooltip("Color used for value 2 pickups.")]
+    [SerializeField] private Color colorForTwo = Color.yellow;
+
+    [Tooltip("Color used for value 4 pickups.")]
+    [SerializeField] private Color colorForFour = Color.green;
+
+    [Tooltip("Color used for value 8 pickups.")]
+    [SerializeField] private Color colorForEight = new Color(1f, 0.5f, 0f); // Orange
+
+    [Tooltip("Color used for value 16 pickups.")]
+    [SerializeField] private Color colorForSixteen = Color.red;
+
+    private Dictionary<int, Color> valueColorMap;
+
+    private void Awake()
     {
-        
+        if (Instance != null && Instance != this)
+        {
+            Debug.LogWarning("GameManager: Duplicate instance found, destroying the new one.");
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+        BuildColorMap();
     }
 
-    // Update is called once per frame
-    void Update()
+    private void BuildColorMap()
     {
-        
+        valueColorMap = new Dictionary<int, Color>
+        {
+            { 2, colorForTwo },
+            { 4, colorForFour },
+            { 8, colorForEight },
+            { 16, colorForSixteen }
+        };
+    }
+
+    /// <summary>
+    /// Returns the fixed list of valid block values (2, 4, 8, 16).
+    /// PickupManager calls this instead of keeping its own list.
+    /// </summary>
+    public IReadOnlyList<int> GetBlockValues()
+    {
+        return BlockValues;
+    }
+
+    /// <summary>
+    /// Returns the configured color for a given block value.
+    /// Falls back to white and logs a warning if the value is unrecognized.
+    /// </summary>
+    public Color GetBlockColor(int value)
+    {
+        if (valueColorMap != null && valueColorMap.TryGetValue(value, out Color color))
+        {
+            return color;
+        }
+
+        Debug.LogWarning($"GameManager: No color is defined for block value '{value}'. Returning white.");
+        return Color.white;
+    }
+
+    // Rebuilds the color map if colors are tweaked in the Inspector during Play Mode.
+    private void OnValidate()
+    {
+        if (Application.isPlaying && Instance == this)
+        {
+            BuildColorMap();
+        }
     }
 }

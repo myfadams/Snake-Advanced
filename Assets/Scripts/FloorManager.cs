@@ -12,12 +12,23 @@ using UnityEngine;
 /// alone; that gap is what stops tiles being destroyed and immediately
 /// re-created as the reference jitters back and forth near a boundary.
 ///
+/// NOTE ON SHAPE: this loads a circular area around the reference/camera by
+/// design -- "radius" is literally a circle, which is what gives uniform draw
+/// distance in every direction regardless of which way you turn. That's
+/// standard for endless-terrain streaming, but it does mean total tile count
+/// scales with the AREA of that circle, which grows fast with big tiles. Max
+/// Active Tiles below is the actual safety valve for that -- tune the radii
+/// for how far you want to see, and let Max Active Tiles guarantee you never
+/// pay for more tiles than your game can afford, regardless of how those
+/// radii are set. (A forward-facing wedge instead of a full circle is
+/// possible as a further optimization, but is a separate change.)
+///
 /// Reuse still happens first: a tile that needs to disappear from one cell and
 /// a cell that needs a tile are paired up and the tile is simply repositioned.
-/// Destroy only fires for genuine surplus -- tiles beyond Despawn Radius for
-/// which there is no missing cell to reuse them into. This keeps the tile
-/// count bounded by what's actually near the camera, which matters here since
-/// each Floor is four large Ground meshes.
+/// Destroy only fires for genuine surplus -- tiles beyond Despawn Radius (or
+/// beyond Max Active Tiles) for which there is no missing cell to reuse them
+/// into. This keeps the tile count bounded by what's actually near the
+/// camera, which matters here since each Floor is four large Ground meshes.
 ///
 /// Attach to the "Environment" GameObject.
 /// Grid convention: Vector2Int(x, y) -> world (X, Z). Y is floor height.
@@ -37,31 +48,35 @@ public class FloorManager : MonoBehaviour
     [SerializeField] private bool includeCamera = true;
 
     [Header("Tile")]
-    [Tooltip("Exact world-space width/depth of one complete Floor prefab. If this doesn't match the real size of your Floor prefab, tile counts and positions will be wrong -- check the Console warning on Play if the count looks off.")]
+    [Tooltip("Exact world-space width/depth of one complete Floor prefab. If this doesn't match the real size of your Floor prefab, tiles will overlap or leave gaps and far more tiles than intended will be spawned. A mismatch warning is logged automatically on Play.")]
     [SerializeField] private float floorTileSize = 100f;
 
     [SerializeField] private bool useCustomFloorHeight = false;
     [SerializeField] private float floorHeight = 0f;
 
     [Header("Spawn / Despawn Radii")]
-    [Tooltip("How far the camera can actually see across the ground (far clip plane, or where fog fully hides the world). Tiles inside this range must exist.")]
-    [SerializeField] private float viewDistance = 250f;
+    [Tooltip("How far the camera can actually see across the ground (far clip plane, or where fog fully hides the world). Tiles inside this range must exist. Keep this proportional to Floor Tile Size -- with large tiles, this should usually only be 1-2 tile widths, not hundreds of units.")]
+    [SerializeField] private float viewDistance = 100f;
 
     [Tooltip("Extra margin added to View Distance for the spawn radius. This is what makes a tile appear BEFORE the camera could see it.")]
-    [SerializeField] private float spawnBuffer = 50f;
+    [SerializeField] private float spawnBuffer = 20f;
 
     [Tooltip("Extra margin added on top of the spawn radius before a tile is destroyed. This is the 'not anywhere close to coming back' zone -- keep it comfortably larger than one tile so tiles don't get destroyed and immediately recreated as the reference moves back and forth.")]
-    [SerializeField] private float despawnBuffer = 100f;
+    [SerializeField] private float despawnBuffer = 60f;
 
     [Tooltip("World distance the reference/camera must move before the grid is re-evaluated. <= 0 auto-derives from Floor Tile Size.")]
     [SerializeField] private float updateThreshold = -1f;
+
+    [Header("Hard Cap")]
+    [Tooltip("Absolute ceiling on how many tiles may exist at once, no matter what the radii above would otherwise produce. If the radii+tile size combination would need more tiles than this, the farthest ones are destroyed instead. This is the real, reliable dial for performance -- set the radii for how far you want to see, and rely on this to guarantee you never pay for more tiles than that.")]
+    [SerializeField] private int maxActiveTiles = 9;
 
     [Header("Debug")]
     [SerializeField] private bool drawGizmos = true;
     [Tooltip("Logs every spawn/destroy. Noisy -- use temporarily to sanity-check behaviour.")]
     [SerializeField] private bool verboseLogging = false;
-    [Tooltip("Warn in the Console if the active tile count ever exceeds this. Usually means Floor Tile Size doesn't match the real prefab size, or the radii are set far larger than intended.")]
-    [SerializeField] private int sanityWarnTileCount = 60;
+    [Tooltip("Warn in the Console if the active tile count ever exceeds this. With Max Active Tiles enforced above, this should rarely fire unless Max Active Tiles itself is set high -- it exists mainly as a second opinion.")]
+    [SerializeField] private int sanityWarnTileCount = 12;
 
     // --- runtime state -------------------------------------------------
 
@@ -70,6 +85,7 @@ public class FloorManager : MonoBehaviour
     // Scratch collections reused every pass -> zero steady-state allocations.
     private readonly List<Vector2Int> missingScratch = new List<Vector2Int>();
     private readonly List<Vector2Int> staleScratch = new List<Vector2Int>();
+    private readonly List<Vector2Int> removableScratch = new List<Vector2Int>();
 
     private Vector3 gridOrigin;   // world position of cell (0,0)
     private Vector3 lastRefPos;
@@ -91,6 +107,7 @@ public class FloorManager : MonoBehaviour
             cameraTransform = Camera.main.transform;
         }
 
+        ValidateFloorTileSize();
         AdoptExistingFloors();
 
         if (referenceTransform == null)
@@ -129,6 +146,40 @@ public class FloorManager : MonoBehaviour
     }
 
     // --- setup ---------------------------------------------------------
+
+    /// <summary>
+    /// Compares Floor Tile Size against the Floor Prefab's actual measured footprint
+    /// (from its renderers) and warns if they don't roughly match. A mismatch here is
+    /// the most common cause of tiles overlapping or leaving gaps, which in turn makes
+    /// the grid think it needs far more tiles than it actually does.
+    /// </summary>
+    private void ValidateFloorTileSize()
+    {
+        if (floorPrefab == null) return;
+
+        Renderer[] renderers = floorPrefab.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return;
+
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+        {
+            bounds.Encapsulate(renderers[i].bounds);
+        }
+
+        float measuredWidth = Mathf.Max(bounds.size.x, bounds.size.z);
+        if (measuredWidth <= 0f) return;
+
+        float ratio = measuredWidth / floorTileSize;
+        if (ratio < 0.9f || ratio > 1.1f)
+        {
+            Debug.LogWarning(
+                $"FloorManager: Floor Tile Size is set to {floorTileSize}, but the Floor Prefab's " +
+                $"actual measured footprint is about {measuredWidth:F1} units wide. These should match " +
+                "closely -- otherwise tiles will overlap or leave gaps, and the grid will spawn more " +
+                "tiles than intended to compensate. Update Floor Tile Size to match your prefab's real size.",
+                this);
+        }
+    }
 
     /// <summary>
     /// Adopts Floor objects already parented under this GameObject as the
@@ -170,9 +221,10 @@ public class FloorManager : MonoBehaviour
     // --- grid maintenance ------------------------------------------------
 
     /// <summary>
-    /// Spawns tiles for every needed cell that doesn't have one, and destroys
-    /// tiles that have fallen beyond Despawn Radius, reusing repositioned
-    /// tiles wherever a swap is possible instead of destroying+instantiating.
+    /// Spawns tiles for every needed cell that doesn't have one, destroys
+    /// tiles that have fallen beyond Despawn Radius (reusing repositioned
+    /// tiles wherever a swap is possible), and then enforces Max Active
+    /// Tiles as a hard backstop regardless of what the radii produced.
     /// </summary>
     private void UpdateGrid()
     {
@@ -220,7 +272,13 @@ public class FloorManager : MonoBehaviour
             }
         }
 
-        if (missingScratch.Count == 0 && staleScratch.Count == 0) return;
+        // Even with nothing missing or stale, occupied could still be over the
+        // cap (e.g. more pre-placed floors than Max Active Tiles allows), so
+        // don't skip the enforcement pass below in that case.
+        if (missingScratch.Count == 0 && staleScratch.Count == 0 && occupied.Count <= maxActiveTiles)
+        {
+            return;
+        }
 
         int staleIndex = 0;
 
@@ -264,13 +322,83 @@ public class FloorManager : MonoBehaviour
             Destroy(tile.gameObject);
         }
 
+        EnforceMaxActiveTiles(refPos, hasCam, camPos, spawnRSqr);
+
         if (!sanityWarned && occupied.Count > sanityWarnTileCount)
         {
             sanityWarned = true;
             Debug.LogWarning(
                 $"FloorManager: {occupied.Count} tiles active at once, more than Sanity Warn Tile Count ({sanityWarnTileCount}). " +
                 "This usually means Floor Tile Size doesn't match the real size of your Floor prefab, or View Distance / the buffers are larger than intended. " +
-                $"Current radii: spawn {SpawnRadius}, despawn {DespawnRadius}, tile size {floorTileSize}.", this);
+                $"Current radii: spawn {SpawnRadius}, despawn {DespawnRadius}, tile size {floorTileSize}, cap {maxActiveTiles}.", this);
+        }
+    }
+
+    /// <summary>
+    /// Backstop: trims tile count toward Max Active Tiles by destroying the farthest
+    /// tiles first, but ONLY among tiles that are already outside Spawn Radius (i.e.
+    /// not currently required). A tile still within Spawn Radius is never touched here,
+    /// no matter how far over the cap the count is -- destroying a still-required tile
+    /// would just cause UpdateGrid to see it as "missing" and instantiate it again on
+    /// the very next pass, which repeats forever: an instantiate/destroy thrash loop
+    /// every re-evaluation. If Spawn Radius alone needs more tiles than the cap allows,
+    /// the cap is exceeded rather than fought - that's a sign the radii and Max Active
+    /// Tiles are set inconsistently (or Floor Tile Size doesn't match your prefab; see
+    /// the mismatch warning in Awake), and the fix is to change those settings, not to
+    /// destroy tiles that are still on screen.
+    /// </summary>
+    private void EnforceMaxActiveTiles(Vector3 refPos, bool hasCam, Vector3 camPos, float spawnRSqr)
+    {
+        int cap = Mathf.Max(1, maxActiveTiles);
+        int excess = occupied.Count - cap;
+        if (excess <= 0) return;
+
+        removableScratch.Clear();
+        foreach (KeyValuePair<Vector2Int, Transform> kvp in occupied)
+        {
+            Vector3 cellPos = CellToWorld(kvp.Key);
+            if (SqrDistanceToNearest(cellPos, refPos, hasCam, camPos) > spawnRSqr)
+            {
+                removableScratch.Add(kvp.Key);
+            }
+        }
+
+        int toRemove = Mathf.Min(excess, removableScratch.Count);
+
+        if (toRemove < excess && verboseLogging)
+        {
+            Debug.LogWarning(
+                $"FloorManager: {occupied.Count} tiles are within Spawn Radius alone, above Max Active " +
+                $"Tiles ({cap}). Leaving the required tiles in place rather than thrashing - increase " +
+                "Max Active Tiles, shrink View Distance/Spawn Buffer, or check the Floor Tile Size " +
+                "mismatch warning.", this);
+        }
+
+        for (int i = 0; i < toRemove; i++)
+        {
+            int farthestIndex = -1;
+            float farthestSqr = -1f;
+
+            for (int j = 0; j < removableScratch.Count; j++)
+            {
+                Vector3 cellPos = CellToWorld(removableScratch[j]);
+                float sqr = SqrDistanceToNearest(cellPos, refPos, hasCam, camPos);
+                if (sqr > farthestSqr)
+                {
+                    farthestSqr = sqr;
+                    farthestIndex = j;
+                }
+            }
+
+            if (farthestIndex < 0) break;
+
+            Vector2Int cell = removableScratch[farthestIndex];
+            removableScratch.RemoveAt(farthestIndex);
+
+            Transform tile = occupied[cell];
+            occupied.Remove(cell);
+            if (verboseLogging) Debug.Log($"FloorManager: over Max Active Tiles cap, destroyed tile at {cell}.", this);
+            Destroy(tile.gameObject);
         }
     }
 
@@ -314,6 +442,7 @@ public class FloorManager : MonoBehaviour
         if (viewDistance < 0f) viewDistance = 0f;
         if (spawnBuffer < 0f) spawnBuffer = 0f;
         if (despawnBuffer < 0f) despawnBuffer = 0f;
+        if (maxActiveTiles < 1) maxActiveTiles = 1;
         if (sanityWarnTileCount < 1) sanityWarnTileCount = 1;
     }
 

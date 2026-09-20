@@ -237,7 +237,7 @@ MonoBehaviour:
   m_VolumeTrigger: {fileID: 0}
   m_VolumeFrameworkUpdateModeOption: 2
   m_RenderPostProcessing: 1
-  m_Antialiasing: 0
+  m_Antialiasing: 1
   m_AntialiasingQuality: 2
   m_StopNaN: 0
   m_Dithering: 0
@@ -271,6 +271,54 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   player: {fileID: 1295684225}
   smoothSpeed: 5
+--- !u!1 &406514843
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 406514845}
+  - component: {fileID: 406514844}
+  m_Layer: 0
+  m_Name: GameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &406514844
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 406514843}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: add2dcd8acd45dd40b2d454d714e0fb0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameManager
+  colorForTwo: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  colorForFour: {r: 0, g: 1, b: 0, a: 1}
+  colorForEight: {r: 1, g: 0.5, b: 0, a: 1}
+  colorForSixteen: {r: 1, g: 0, b: 0, a: 1}
+--- !u!4 &406514845
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 406514843}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.41, y: 0.1529, z: -0.89}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -343,7 +391,7 @@ Light:
   m_LightShadowCasterMode: 0
   m_AreaSize: {x: 1, y: 1}
   m_BounceIntensity: 1
-  m_ColorTemperature: 3778
+  m_ColorTemperature: 8236
   m_UseColorTemperature: 1
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
@@ -514,9 +562,10 @@ GameObject:
   m_Component:
   - component: {fileID: 1295684225}
   - component: {fileID: 1295684226}
+  - component: {fileID: 1295684227}
   m_Layer: 0
   m_Name: player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -556,6 +605,33 @@ MonoBehaviour:
   fallbackSegmentRadius: 0.15
   historyPointSpacing: 0.05
   historyBuffer: 1
+--- !u!54 &1295684227
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1295684224}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!4 &1725514145 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5572343012874535557, guid: 87a076b831113c54ea82905b34921207, type: 3}
@@ -576,6 +652,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2060327052}
   - component: {fileID: 2060327051}
+  - component: {fileID: 2060327053}
   m_Layer: 0
   m_Name: environment
   m_TagString: Untagged
@@ -596,16 +673,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FloorManager
   floorPrefab: {fileID: 8355601487436331187, guid: 87a076b831113c54ea82905b34921207, type: 3}
-  referenceTransform: {fileID: 330585546}
-  cameraTransform: {fileID: 0}
+  referenceTransform: {fileID: 1295684225}
+  cameraTransform: {fileID: 330585546}
   includeCamera: 1
   floorTileSize: 4
   useCustomFloorHeight: 0
   floorHeight: 0
-  viewDistance: 250
-  spawnBuffer: 50
-  despawnBuffer: 100
+  viewDistance: 30
+  spawnBuffer: 25
+  despawnBuffer: 15
   updateThreshold: -1
+  maxActiveTiles: 9
   drawGizmos: 1
   verboseLogging: 0
   sanityWarnTileCount: 60
@@ -625,6 +703,31 @@ Transform:
   - {fileID: 1725514145}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2060327053
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2060327050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1634829f581c0b343ae5ba3c269b6d30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PickupManager
+  pickupPrefab: {fileID: 6488912922323857828, guid: 23314c31162695f438a0b61e83598a5a, type: 3}
+  player: {fileID: 1295684225}
+  minSpawnDistanceFromPlayer: 3
+  maxSpawnDistanceFromPlayer: 15
+  gameplayCamera: {fileID: 0}
+  outOfViewSpawnChance: 0.3
+  floorBoundsCenter: {x: 0, y: 0, z: 0}
+  floorBoundsSize: {x: 40, y: 0, z: 40}
+  floorHeight: 0
+  heightAboveFloor: 0.5
+  desiredPickupCount: 10
+  minDistanceBetweenPickups: 2
+  maxSpawnAttemptsPerPickup: 30
 --- !u!1001 &8325786701565794717
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -715,3 +818,4 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 1295684225}
   - {fileID: 2060327052}
+  - {fileID: 406514845}
