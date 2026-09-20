@@ -61,6 +61,11 @@ public class PlayerMovement : MonoBehaviour
     // 1f = normal full spacing; 0f = newly added segment at head, existing segments at pre-growth distances.
     private float insertionProgress = 1f;
 
+    // Gap closing state after a segment is removed
+    private int gapClosingIndex = -1;
+    private float gapClosingProgress = 1f;
+    private float gapClosingAmount = 0f;
+
     /// <summary>
     /// Sets the smooth insertion transition progress (0..1) for a newly inserted segment at index 0.
     /// At 0, the new segment starts at the head, and all existing segments remain at their exact pre-growth positions.
@@ -70,6 +75,26 @@ public class PlayerMovement : MonoBehaviour
     {
         insertionProgress = Mathf.Clamp01(progress);
         MoveBodyAlongPath();
+    }
+
+    /// <summary>
+    /// Smoothly transitions remaining segments forward to close the gap after a segment at removedIndex is destroyed.
+    /// progress: 0 (segments remain at their pre-removal distances) -> 1 (gap fully closed).
+    /// </summary>
+    public void SetGapClosingProgress(int removedIndex, float progress, float gapAmount)
+    {
+        gapClosingIndex = removedIndex;
+        gapClosingProgress = Mathf.Clamp01(progress);
+        gapClosingAmount = gapAmount;
+        MoveBodyAlongPath();
+    }
+
+    /// <summary>
+    /// Gets the standard spacing gap between neighbouring segments.
+    /// </summary>
+    public float GetDefaultGap()
+    {
+        return cumulativeDistances.Count > 0 ? cumulativeDistances[0] : (fallbackSegmentRadius * 2f + extraSpacing);
     }
 
     private void OnValidate()
@@ -364,9 +389,19 @@ public class PlayerMovement : MonoBehaviour
                 continue;
 
             float standardDist = i < cumulativeDistances.Count ? cumulativeDistances[i] : 0f;
-            float targetDistance = (i == 0)
-                ? firstSegmentGap * insertionProgress
-                : Mathf.Max(standardDist - gapAdjustment, 0.001f);
+            float targetDistance = standardDist;
+
+            if (insertionProgress < 1f)
+            {
+                targetDistance = (i == 0)
+                    ? firstSegmentGap * insertionProgress
+                    : Mathf.Max(standardDist - gapAdjustment, 0.001f);
+            }
+            else if (gapClosingIndex >= 0 && i >= gapClosingIndex && gapClosingProgress < 1f)
+            {
+                float remainingGap = gapClosingAmount * (1f - gapClosingProgress);
+                targetDistance = standardDist + remainingGap;
+            }
 
             Vector3 targetPosition = GetPointAtDistance(targetDistance);
             targetPosition.y = segment.position.y;

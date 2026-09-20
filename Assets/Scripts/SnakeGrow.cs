@@ -3,27 +3,32 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Manages the snake's growth, block values, and visually smooth adjacent-value merging.
-/// Attach this to the same Player GameObject as PlayerMovement.
+/// Manages the snake's growth, block values, visually smooth adjacent-value merging,
+/// and body-damage hazard mechanics. Attach this to the same Player GameObject as PlayerMovement.
 ///
-/// The Head and every body segment form one logical value sequence, Head first:
+/// Logical value sequence, Head first:
 /// Head -> Body -> Body 1 -> Body 2 -> ...
 ///
-/// Eating a pickup inserts a new block immediately after the Head.
-/// The new segment is smoothly grown and integrated into the snake's movement chain over
-/// growthDuration using an easing curve, allowing existing segments to seamlessly glide
-/// backward along the path history without snapping or jumping.
+/// 1. GROWTH:
+/// Eating a pickup inserts a new block immediately after the Head. The new segment smoothly
+/// grows and integrates into the movement chain over growthDuration using an easing curve,
+/// allowing existing segments to seamlessly glide backward along the path history without snapping.
 ///
-/// Once growth completes, adjacent blocks with equal values are detected and smoothly animate
-/// moving toward their shared midpoint using an easing curve.
-/// Upon meeting, the front block doubles in value and updates its color via Body.cs / GameManager,
-/// while the rear block is removed. A subtle scale punch plays as the surviving block returns
-/// smoothly to its exact position in the snake's movement chain.
+/// 2. MERGES:
+/// When adjacent blocks with equal values are detected, they smoothly animate toward their
+/// shared midpoint over mergeMoveDuration. Upon meeting, the front block doubles in value
+/// and updates its color via Body.cs / GameManager, while the rear block is removed.
+/// A subtle scale punch plays as the surviving block returns smoothly into the movement chain.
+/// Cascading chain merges resolve sequentially.
 ///
-/// Chain merges (e.g. [8] [4] [2] [2] -> [8] [4] [4] -> [8] [8] -> [16]) are resolved
-/// sequentially, each with its own distinct smooth merge animation and scale punch.
-/// The Head participates fully in merge animations without ever being destroyed or recreated.
-/// Snake movement along the path continues smoothly without pausing or freezing during growth and merges.
+/// 3. BODY DAMAGE:
+/// When a dangerous block or hazard hits a body segment:
+/// - The damaged segment tumbles, shrinks, and glides away over damageEjectDuration.
+/// - The remaining segments smoothly close the gap along the real path history without snapping.
+/// - The Head's value is reduced based on 2048 progression levels (2->lvl 1, 4->lvl 2, etc.),
+///   playing an animated scale pop and color update.
+/// - The Head itself is immune to normal body damage and never drops below 2.
+/// - If reduction would drop the Head below 2, OnDeathCondition is triggered.
 /// </summary>
 [RequireComponent(typeof(PlayerMovement))]
 public class SnakeGrow : MonoBehaviour
@@ -59,6 +64,37 @@ public class SnakeGrow : MonoBehaviour
     [Tooltip("Peak scale multiplier for the surviving block during the merge pop.")]
     [Range(1.05f, 1.6f)]
     [SerializeField] private float scalePunchMultiplier = 1.25f;
+
+    [Header("Body Damage Animation")]
+    [Tooltip("Duration in seconds for the damaged block to eject, tumble, and shrink away.")]
+    [Range(0.1f, 0.5f)]
+    [SerializeField] private float damageEjectDuration = 0.22f;
+
+    [Tooltip("Distance the damaged block flies away from the snake as it is destroyed.")]
+    [Range(0.3f, 3.0f)]
+    [SerializeField] private float damageEjectDistance = 1.0f;
+
+    [Tooltip("Duration in seconds for remaining segments to smoothly close the gap left by the destroyed block.")]
+    [Range(0.1f, 0.5f)]
+    [SerializeField] private float gapCloseDuration = 0.20f;
+
+    [Tooltip("Easing curve used when smoothly closing the gap.")]
+    [SerializeField] private AnimationCurve gapCloseCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+
+    [Header("Head Damage Animation")]
+    [Tooltip("Duration in seconds for the Head to animate its value reduction scale punch.")]
+    [Range(0.08f, 0.4f)]
+    [SerializeField] private float headDamagePunchDuration = 0.16f;
+
+    [Tooltip("Peak scale multiplier for the Head during its damage value reduction pop.")]
+    [Range(1.05f, 1.5f)]
+    [SerializeField] private float headDamageScaleMultiplier = 1.25f;
+
+    /// <summary>
+    /// Event triggered when the Head's value would be reduced below 2.
+    /// Can be subscribed to by game-over or death systems.
+    /// </summary>
+    public event System.Action OnDeathCondition;
 
     // segments[0] is always the Head; segments[1..] are the body, in the
     // same order as the physical hierarchy under Player.
@@ -96,6 +132,7 @@ public class SnakeGrow : MonoBehaviour
         if (playerMovement != null)
         {
             playerMovement.SetInsertionProgress(1f);
+            playerMovement.SetGapClosingProgress(-1, 1f, 0f);
         }
 
         if (head != null)
@@ -243,6 +280,246 @@ public class SnakeGrow : MonoBehaviour
             playerMovement.SetInsertionProgress(1f);
         }
     }
+
+    #region Body Damage System
+
+    /// <summary>
+    /// Call when a hazard or dangerous entity hits a snake body segment.
+    /// The damaged segment leaves the snake with a smooth ejection animation,
+    /// trailing segments close the gap smoothly along the path, and the Head's
+    /// value is reduced based on 2048-style progression levels.
+    /// The Head itself is immune to this method.
+    /// Returns true if a body segment was damaged, false otherwise.
+    /// </summary>
+    public bool TakeBodyDamage(Transform damagedSegment)
+    {
+        if (damagedSegment == null)
+            return false;
+
+        // The Head cannot take body damage
+        if (damagedSegment == head || (segments.Count > 0 && damagedSegment == segments[0]))
+            return false;
+
+        int segmentIndex = segments.IndexOf(damagedSegment);
+        if (segmentIndex <= 0) // -1 not found, 0 is Head
+            return false;
+
+        body damagedBody = damagedSegment.GetComponent<body>();
+        int damagedValue = damagedBody != null ? damagedBody.Value : 2;
+
+        // Disable collider immediately to prevent duplicate hits
+        Collider col = damagedSegment.GetComponent<Collider>();
+        if (col != null)
+        {
+            col.enabled = false;
+        }
+
+        // Unparent so it is no longer bound to the Player's transform hierarchy
+        damagedSegment.SetParent(null);
+
+        // Remove from logical segments list immediately
+        segments.RemoveAt(segmentIndex);
+        UpdateHierarchyOrder();
+
+        // Calculate gap size to close in PlayerMovement
+        float gapToClose = playerMovement != null ? playerMovement.GetDefaultGap() : 0.3f;
+
+        // Index in PlayerMovement.bodySegments is segmentIndex - 1 (since segments[0] is Head)
+        int bodyIndex = segmentIndex - 1;
+
+        // Sync remaining body segments with PlayerMovement
+        SyncMovement();
+
+        // 1. Calculate Head's new value based on 2048 progression levels
+        body headBody = head != null ? head.GetComponent<body>() : null;
+        int currentHeadVal = headBody != null ? headBody.Value : 2;
+        int newHeadVal = CalculateReducedHeadValue(currentHeadVal, damagedValue);
+
+        // 2. Animate damaged segment flying away
+        StartCoroutine(AnimateDamagedSegmentEjection(damagedSegment));
+
+        // 3. Smoothly close the gap along the movement path
+        if (bodyIndex < segments.Count - 1) // If there are segments behind the removed one
+        {
+            StartCoroutine(AnimateGapClosing(bodyIndex, gapToClose));
+        }
+
+        // 4. Animate Head value reduction pop
+        if (headBody != null && head != null)
+        {
+            StartCoroutine(AnimateHeadDamage(headBody, newHeadVal));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Calculates the new Head value using 2048-style progression levels:
+    /// 2 -> level 1, 4 -> level 2, 8 -> level 3, 16 -> level 4, etc.
+    /// Reduces the Head by the number of levels represented by the destroyed segment.
+    /// The Head never drops below 2; if it would, it triggers the death condition.
+    /// </summary>
+    private int CalculateReducedHeadValue(int currentHeadValue, int destroyedSegmentValue)
+    {
+        int headLevel = Mathf.Max(1, Mathf.RoundToInt(Mathf.Log(Mathf.Max(2, currentHeadValue), 2)));
+        int lossLevels = Mathf.Max(1, Mathf.RoundToInt(Mathf.Log(Mathf.Max(2, destroyedSegmentValue), 2)));
+
+        int newLevel = headLevel - lossLevels;
+        if (newLevel < 1)
+        {
+            TriggerDeathOrGameOver();
+            return 2;
+        }
+
+        return 1 << newLevel;
+    }
+
+    private void TriggerDeathOrGameOver()
+    {
+        Debug.Log("SnakeGrow: Death condition triggered - Head reduced to minimum (2).");
+        OnDeathCondition?.Invoke();
+    }
+
+    /// <summary>
+    /// Smoothly animates the damaged segment flying away from the snake:
+    /// drifts sideways/upward, tumbles, and shrinks to zero before being destroyed.
+    /// </summary>
+    private IEnumerator AnimateDamagedSegmentEjection(Transform ejectedTransform)
+    {
+        if (ejectedTransform == null)
+            yield break;
+
+        Vector3 startPos = ejectedTransform.position;
+        Vector3 startScale = ejectedTransform.localScale;
+        Quaternion startRot = ejectedTransform.rotation;
+
+        // Ejection trajectory: sideways drift + slight upward impulse
+        Vector3 forward = head != null ? head.forward : Vector3.forward;
+        Vector3 right = head != null ? head.right : Vector3.right;
+        float sideSign = Random.value > 0.5f ? 1f : -1f;
+        Vector3 ejectDir = (right * (sideSign * 0.8f) + Vector3.up * 0.9f - forward * 0.2f).normalized;
+
+        Vector3 targetPos = startPos + ejectDir * damageEjectDistance;
+        Vector3 randomTorque = new Vector3(
+            Random.Range(-180f, 180f),
+            Random.Range(-180f, 180f),
+            Random.Range(-180f, 180f)
+        );
+
+        float elapsed = 0f;
+        while (elapsed < damageEjectDuration)
+        {
+            yield return null;
+            if (ejectedTransform == null)
+                yield break;
+
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / damageEjectDuration);
+            float ease = Mathf.SmoothStep(0f, 1f, t);
+
+            ejectedTransform.position = Vector3.Lerp(startPos, targetPos, ease);
+            ejectedTransform.rotation = startRot * Quaternion.Euler(randomTorque * ease);
+            ejectedTransform.localScale = Vector3.Lerp(startScale, Vector3.zero, ease);
+        }
+
+        if (ejectedTransform != null)
+        {
+            Destroy(ejectedTransform.gameObject);
+        }
+    }
+
+    /// <summary>
+    /// Smoothly eases the trailing segments forward along the snake's path to seal
+    /// the gap left by the removed segment without sudden jumping.
+    /// </summary>
+    private IEnumerator AnimateGapClosing(int removedBodyIndex, float gapAmount)
+    {
+        if (playerMovement == null)
+            yield break;
+
+        float elapsed = 0f;
+        while (elapsed < gapCloseDuration)
+        {
+            yield return null;
+
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / gapCloseDuration);
+            float ease = gapCloseCurve != null ? gapCloseCurve.Evaluate(t) : Mathf.SmoothStep(0f, 1f, t);
+
+            if (playerMovement != null)
+            {
+                playerMovement.SetGapClosingProgress(removedBodyIndex, ease, gapAmount);
+            }
+        }
+
+        if (playerMovement != null)
+        {
+            playerMovement.SetGapClosingProgress(-1, 1f, 0f);
+        }
+    }
+
+    /// <summary>
+    /// Smoothly animates the Head's value reduction:
+    /// scales up slightly, updates the value and color at the apex, and returns to normal scale.
+    /// </summary>
+    private IEnumerator AnimateHeadDamage(body headBodyComponent, int newHeadValue)
+    {
+        if (head == null || headBodyComponent == null)
+            yield break;
+
+        Vector3 originalScale = head.localScale;
+        bool valueUpdated = false;
+
+        float elapsed = 0f;
+        while (elapsed < headDamagePunchDuration)
+        {
+            yield return null;
+            if (head == null)
+                yield break;
+
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / headDamagePunchDuration);
+
+            // Half-way through the pop, flip the value and color
+            if (t >= 0.5f && !valueUpdated)
+            {
+                valueUpdated = true;
+                headBodyComponent.SetValue(newHeadValue);
+            }
+
+            // Sine wave pop: 1.0 -> headDamageScaleMultiplier -> 1.0
+            float punchFactor = 1f + (headDamageScaleMultiplier - 1f) * Mathf.Sin(t * Mathf.PI);
+            head.localScale = originalScale * punchFactor;
+        }
+
+        if (!valueUpdated && headBodyComponent != null)
+        {
+            headBodyComponent.SetValue(newHeadValue);
+        }
+
+        if (head != null)
+        {
+            head.localScale = originalScale;
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.GetComponent<Hazard>() != null || collision.gameObject.tag == "Hazard")
+        {
+            // Identify which child collider on the snake was hit
+            if (collision.contactCount > 0)
+            {
+                Collider hitCollider = collision.GetContact(0).thisCollider;
+                if (hitCollider != null)
+                {
+                    TakeBodyDamage(hitCollider.transform);
+                }
+            }
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// Scans the segment list from front to back and returns the index of the first

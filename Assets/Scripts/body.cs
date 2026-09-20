@@ -25,6 +25,31 @@ public class body : MonoBehaviour
         ApplyVisuals();
     }
 
+    private void OnTriggerEnter(Collider other)
+    {
+        CheckHazardContact(other.gameObject);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        CheckHazardContact(collision.gameObject);
+    }
+
+    private void CheckHazardContact(GameObject otherObject)
+    {
+        if (otherObject == null)
+            return;
+
+        if (otherObject.GetComponent<Hazard>() != null || otherObject.tag == "Hazard")
+        {
+            SnakeGrow snake = GetComponentInParent<SnakeGrow>();
+            if (snake != null)
+            {
+                snake.TakeBodyDamage(transform);
+            }
+        }
+    }
+
     /// <summary>
     /// Updates this block's value and refreshes its color and text
     /// through the existing GameManager / dynamic color system. Call this instead
