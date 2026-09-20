@@ -129,9 +129,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Pickup
   bodyRenderer: {fileID: 5554811451262138580}
   valueText: {fileID: 8757373130924276104}
-  hoverHeight: 0.17
+  hoverHeight: 0.045
   hoverSpeed: 2
   rotationSpeed: 90
+  collectionEffectPrefab: {fileID: 3281665843732006339, guid: 1f80f4549f4885d41bf4ca2d1e932d2d, type: 3}
+  collectionEffectFallbackDuration: 2
   gameplayCamera: {fileID: 0}
   maxTimeOutOfView: 10
 --- !u!54 &-6619776633033076428

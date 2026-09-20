@@ -19,6 +19,7 @@ public class PlayerMovement : MonoBehaviour
 {
     [Header("Snake")]
     [SerializeField] private Transform head;
+    
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;

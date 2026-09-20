@@ -37,6 +37,15 @@ public class Pickup : MonoBehaviour
     [Tooltip("Degrees per second the pickup spins around its Y axis.")]
     [SerializeField] private float rotationSpeed = 90f;
 
+    [Header("Collection Effect")]
+    [Tooltip("Particle effect prefab to spawn at this pickup's position the moment it's " +
+             "collected (e.g. Unity's 'Respawn' particle prefab) - plays in place of the " +
+             "pickup just silently vanishing. Leave empty to skip.")]
+    [SerializeField] private GameObject collectionEffectPrefab;
+
+    [Tooltip("Fallback lifetime for the spawned effect if it has no ParticleSystem to measure a duration from.")]
+    [SerializeField] private float collectionEffectFallbackDuration = 2f;
+
     [Header("Out-of-View Lifetime")]
     [Tooltip("Camera used to check visibility. Leave empty to use Camera.main.")]
     [SerializeField] private Camera gameplayCamera;
@@ -186,8 +195,79 @@ public class Pickup : MonoBehaviour
     {
         if (IsPlayer(other))
         {
-            Destroy(gameObject);
+            Collect();
         }
+    }
+
+    private void Collect()
+    {
+        SpawnCollectionEffect();
+        Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// Instantiates the collection effect at this pickup's position/rotation as its own
+    /// independent object (not a child of this pickup, so destroying the pickup doesn't
+    /// cut the effect off), then schedules its own cleanup based on how long it actually
+    /// plays for - no need to hand-tune a delay per effect.
+    /// </summary>
+    private void SpawnCollectionEffect()
+    {
+        if (collectionEffectPrefab == null)
+        {
+            return;
+        }
+
+        GameObject effect = Instantiate(collectionEffectPrefab, transform.position, transform.rotation);
+        ApplyBlockColorToEffect(effect);
+        // GetEffectLifetime(effect)
+        Destroy(effect, 4f);
+    }
+
+    /// <summary>
+    /// Overrides every particle system's Start Color (root and any sub-emitters) to this
+    /// pickup's block color, so the effect matches whichever value/color was collected.
+    /// Any Color Over Lifetime module still multiplies against this, so fade-outs etc.
+    /// on the original effect are preserved - only the base hue changes.
+    /// </summary>
+    private void ApplyBlockColorToEffect(GameObject effect)
+    {
+        if (GameManager.Instance == null)
+        {
+            return;
+        }
+
+        Color color = GameManager.Instance.GetBlockColor(value);
+        ParticleSystem[] systems = effect.GetComponentsInChildren<ParticleSystem>();
+
+        foreach (ParticleSystem ps in systems)
+        {
+            ParticleSystem.MainModule main = ps.main;
+            main.startColor = new ParticleSystem.MinMaxGradient(color);
+        }
+    }
+
+    private float GetEffectLifetime(GameObject effect)
+    {
+        ParticleSystem[] systems = effect.GetComponentsInChildren<ParticleSystem>();
+        if (systems.Length == 0)
+        {
+            return collectionEffectFallbackDuration;
+        }
+
+        // Longest of (duration + max start lifetime) across all sub-emitters, so a multi-part
+        // effect (e.g. a burst plus lingering sparks) is given time to fully finish before cleanup.
+        float longest = 0f;
+        foreach (ParticleSystem ps in systems)
+        {
+            float lifetime = ps.main.duration + ps.main.startLifetime.constantMax;
+            if (lifetime > longest)
+            {
+                longest = lifetime;
+            }
+        }
+
+        return longest > 0f ? longest : collectionEffectFallbackDuration;
     }
 
     /// <summary>

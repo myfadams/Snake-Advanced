@@ -680,10 +680,10 @@ MonoBehaviour:
   useCustomFloorHeight: 0
   floorHeight: 0
   viewDistance: 30
-  spawnBuffer: 25
-  despawnBuffer: 15
+  spawnBuffer: 20
+  despawnBuffer: 10
   updateThreshold: -1
-  maxActiveTiles: 9
+  maxActiveTiles: 5
   drawGizmos: 1
   verboseLogging: 0
   sanityWarnTileCount: 60
@@ -718,14 +718,14 @@ MonoBehaviour:
   pickupPrefab: {fileID: 6488912922323857828, guid: 23314c31162695f438a0b61e83598a5a, type: 3}
   player: {fileID: 1295684225}
   minSpawnDistanceFromPlayer: 3
-  maxSpawnDistanceFromPlayer: 15
+  maxSpawnDistanceFromPlayer: 10
   gameplayCamera: {fileID: 0}
   outOfViewSpawnChance: 0.3
   floorBoundsCenter: {x: 0, y: 0, z: 0}
   floorBoundsSize: {x: 40, y: 0, z: 40}
   floorHeight: 0
-  heightAboveFloor: 0.5
-  desiredPickupCount: 10
+  heightAboveFloor: 0.2
+  desiredPickupCount: 15
   minDistanceBetweenPickups: 2
   maxSpawnAttemptsPerPickup: 30
 --- !u!1001 &8325786701565794717
