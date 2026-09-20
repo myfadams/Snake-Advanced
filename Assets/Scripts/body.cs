@@ -28,7 +28,21 @@ public class body : MonoBehaviour
 
     private void ApplyVisuals()
     {
-        gameObject.GetComponent<Renderer>().material.color = GameManager.Instance.GetBlockColor(cubeValueInt);
+        Renderer blockRenderer = GetComponent<Renderer>();
+        if (blockRenderer == null)
+        {
+            blockRenderer = GetComponentInChildren<Renderer>();
+        }
+
+        if (blockRenderer != null && GameManager.Instance != null)
+        {
+            blockRenderer.material.color = GameManager.Instance.GetBlockColor(cubeValueInt);
+        }
+
+        if (cubeText == null)
+        {
+            cubeText = GetComponentInChildren<TMP_Text>();
+        }
 
         if (cubeText != null)
         {

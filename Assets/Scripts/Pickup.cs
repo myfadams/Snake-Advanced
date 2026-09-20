@@ -222,6 +222,8 @@ public class Pickup : MonoBehaviour
         }
 
         SpawnCollectionEffect();
+        // AudioSource eatSound = gameObject.GetComponent<AudioSource>();
+        // eatSound?.Play();
         Destroy(gameObject);
     }
 
