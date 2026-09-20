@@ -52,7 +52,7 @@ public class Pickup : MonoBehaviour
 
     [Tooltip("How many seconds the pickup can stay continuously out of camera view " +
              "before it destroys itself. The timer resets to 0 the instant it becomes visible again.")]
-    [SerializeField] private float maxTimeOutOfView = 10f;
+    [SerializeField] private float maxTimeOutOfView = 4f;
 
     private int value;
     private Vector3 spawnPosition;

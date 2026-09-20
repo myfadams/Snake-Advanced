@@ -732,18 +732,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PickupManager
   pickupPrefab: {fileID: 6488912922323857828, guid: 23314c31162695f438a0b61e83598a5a, type: 3}
   player: {fileID: 1295684225}
-  minSpawnDistanceFromPlayer: 3
-  maxSpawnDistanceFromPlayer: 10
+  minSpawnDistanceFromPlayer: 2.5
+  maxSpawnDistanceFromPlayer: 7
+  forwardBiasChance: 0.85
+  forwardConeAngle: 55
   gameplayCamera: {fileID: 0}
-  outOfViewSpawnChance: 0.3
+  outOfViewSpawnChance: 0
   floorBoundsCenter: {x: 0, y: 0, z: 0}
   floorBoundsSize: {x: 40, y: 0, z: 40}
   floorHeight: 0
   heightAboveFloor: 0.2
-  desiredPickupCount: 15
-  minDistanceBetweenPickups: 2
+  minActivePickups: 6
+  maxActivePickups: 8
+  minDistanceBetweenPickups: 1.8
   maxSpawnAttemptsPerPickup: 30
-  headValueBiasStrength: 1.5
 --- !u!1001 &8325786701565794717
 PrefabInstance:
   m_ObjectHideFlags: 0

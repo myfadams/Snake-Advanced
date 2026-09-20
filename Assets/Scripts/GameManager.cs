@@ -63,8 +63,48 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Returns the configured color for a given block value.
-    /// Falls back to white and logs a warning if the value is unrecognized.
+    /// Checks if a color is predefined for the given block value.
+    /// Returns true and sets color if found; otherwise false.
+    /// </summary>
+    public bool TryGetBlockColor(int value, out Color color)
+    {
+        if (valueColorMap != null && valueColorMap.TryGetValue(value, out color))
+        {
+            return true;
+        }
+
+        color = Color.white;
+        return false;
+    }
+
+    /// <summary>
+    /// Registers or updates a block value color at runtime (e.g. for dynamic values like 32, 64).
+    /// </summary>
+    public void RegisterBlockColor(int value, Color color)
+    {
+        if (valueColorMap == null)
+        {
+            BuildColorMap();
+        }
+
+        valueColorMap[value] = color;
+    }
+
+    /// <summary>
+    /// Returns all currently defined colors in the color map.
+    /// </summary>
+    public IEnumerable<Color> GetAllDefinedColors()
+    {
+        if (valueColorMap == null)
+        {
+            BuildColorMap();
+        }
+
+        return valueColorMap.Values;
+    }
+
+    /// <summary>
+    /// Returns the configured or dynamically generated color for a given block value.
     /// </summary>
     public Color GetBlockColor(int value)
     {
@@ -73,8 +113,7 @@ public class GameManager : MonoBehaviour
             return color;
         }
 
-        Debug.LogWarning($"GameManager: No color is defined for block value '{value}'. Returning white.");
-        return Color.white;
+        return body.GetColorForValue(value);
     }
 
     // Rebuilds the color map if colors are tweaked in the Inspector during Play Mode.

@@ -136,7 +136,7 @@ MonoBehaviour:
   collectionEffectPrefab: {fileID: 3281665843732006339, guid: 1f80f4549f4885d41bf4ca2d1e932d2d, type: 3}
   collectionEffectFallbackDuration: 2
   gameplayCamera: {fileID: 0}
-  maxTimeOutOfView: 10
+  maxTimeOutOfView: 4
 --- !u!54 &-6619776633033076428
 Rigidbody:
   m_ObjectHideFlags: 0

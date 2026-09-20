@@ -57,6 +57,21 @@ public class PlayerMovement : MonoBehaviour
     // used to derive a safe turn speed automatically.
     private float maxSegmentRadius = 0.1f;
 
+    // Smooth insertion progress (0..1) for a newly added segment at index 0.
+    // 1f = normal full spacing; 0f = newly added segment at head, existing segments at pre-growth distances.
+    private float insertionProgress = 1f;
+
+    /// <summary>
+    /// Sets the smooth insertion transition progress (0..1) for a newly inserted segment at index 0.
+    /// At 0, the new segment starts at the head, and all existing segments remain at their exact pre-growth positions.
+    /// At 1 (default), all segments sit at their full standard cumulative spacing.
+    /// </summary>
+    public void SetInsertionProgress(float progress)
+    {
+        insertionProgress = Mathf.Clamp01(progress);
+        MoveBodyAlongPath();
+    }
+
     private void OnValidate()
     {
         historyPointSpacing = Mathf.Max(historyPointSpacing, 0.001f);
@@ -339,11 +354,19 @@ public class PlayerMovement : MonoBehaviour
             return;
 
         Vector3 aheadPosition = head.position;
+        float firstSegmentGap = cumulativeDistances.Count > 0 ? cumulativeDistances[0] : 0f;
+        float gapAdjustment = firstSegmentGap * (1f - insertionProgress);
 
         for (int i = 0; i < bodySegments.Count; i++)
         {
             Transform segment = bodySegments[i];
-            float targetDistance = cumulativeDistances[i];
+            if (segment == null)
+                continue;
+
+            float standardDist = i < cumulativeDistances.Count ? cumulativeDistances[i] : 0f;
+            float targetDistance = (i == 0)
+                ? firstSegmentGap * insertionProgress
+                : Mathf.Max(standardDist - gapAdjustment, 0.001f);
 
             Vector3 targetPosition = GetPointAtDistance(targetDistance);
             targetPosition.y = segment.position.y;
@@ -363,7 +386,7 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    private Vector3 GetPointAtDistance(float distance)
+    public Vector3 GetPointAtDistance(float distance)
     {
         Vector3 previousPoint = head.position;
         float distanceCovered = 0f;
