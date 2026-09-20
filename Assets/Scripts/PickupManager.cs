@@ -6,6 +6,11 @@ using UnityEngine;
 /// Spawns and maintains a configured number of Pickup instances near the player,
 /// occasionally placing some outside the camera's current view, assigning each one
 /// a value obtained from GameManager (never a locally defined list).
+///
+/// Values are weighted toward the Head's current value rather than picked uniformly:
+/// values many power-of-2 tiers away from the Head are rarer, and that bias fades
+/// to fully uniform once the Head's value reaches the highest value GameManager
+/// currently defines - see PickWeightedByHeadValue().
 /// </summary>
 public class PickupManager : MonoBehaviour
 {
@@ -63,7 +68,21 @@ public class PickupManager : MonoBehaviour
     [Tooltip("How many candidate positions to try per pickup before giving up for this frame.")]
     [SerializeField] private int maxSpawnAttemptsPerPickup = 30;
 
+    [Header("Head-Relative Value Weighting")]
+    [Range(0f, 5f)]
+    [Tooltip("How strongly spawn values are pulled toward the Head's current value. 0 = always uniform " +
+             "across all values. Higher = values many power-of-2 tiers away from the Head become much " +
+             "rarer (though never impossible). This bias fades out smoothly as the Head's value approaches " +
+             "the highest value GameManager currently defines, reaching fully uniform once the Head " +
+             "reaches (or exceeds) it - e.g. once the Head is 16, every defined value spawns equally often.")]
+    [SerializeField] private float headValueBiasStrength = 1.5f;
+
     private readonly List<Pickup> activePickups = new List<Pickup>();
+
+    // Cached from the assigned Player Transform - lets pickup values be weighted
+    // toward the Head's current value. Optional: falls back to a uniform pick if
+    // this isn't found.
+    private PlayerMovement playerMovement;
 
     private void OnValidate()
     {
@@ -76,6 +95,8 @@ public class PickupManager : MonoBehaviour
         {
             maxSpawnDistanceFromPlayer = minSpawnDistanceFromPlayer;
         }
+
+        headValueBiasStrength = Mathf.Max(headValueBiasStrength, 0f);
     }
 
     private void Start()
@@ -91,6 +112,17 @@ public class PickupManager : MonoBehaviour
         {
             Debug.LogWarning("PickupManager: GameManager.Instance was not found at Start(). " +
                               "Make sure GameManager exists and runs its Awake() before this.");
+        }
+
+        if (player != null)
+        {
+            playerMovement = player.GetComponent<PlayerMovement>();
+
+            if (playerMovement == null)
+            {
+                Debug.LogWarning("PickupManager: no PlayerMovement found on the assigned Player Transform; " +
+                                  "pickup values will spawn uniformly instead of being weighted toward the Head's value.");
+            }
         }
 
         FillUpToDesiredCount();
@@ -144,8 +176,89 @@ public class PickupManager : MonoBehaviour
         }
 
         IReadOnlyList<int> values = GameManager.Instance.GetBlockValues();
-        int randomIndex = Random.Range(0, values.Count);
-        return values[randomIndex];
+
+        if (values == null || values.Count == 0)
+        {
+            Debug.LogWarning("PickupManager: GameManager returned no block values; defaulting to 2.");
+            return 2;
+        }
+
+        int headValue = GetHeadValue();
+
+        if (headValue <= 0)
+        {
+            // No Head value available - fall back to a plain uniform pick.
+            return values[Random.Range(0, values.Count)];
+        }
+
+        return PickWeightedByHeadValue(values, headValue);
+    }
+
+    private int GetHeadValue()
+    {
+        if (playerMovement == null || playerMovement.Head == null)
+        {
+            return 0;
+        }
+
+        body headBody = playerMovement.Head.GetComponent<body>();
+        return headBody != null ? headBody.Value : 0;
+    }
+
+    /// <summary>
+    /// Weighted-random pick across all defined values. Each value's weight falls
+    /// off with its power-of-2 tier distance from the Head's current value, so
+    /// values close to the Head are common and far ones are rare but not
+    /// impossible. The falloff strength itself shrinks toward zero as the Head's
+    /// value approaches the highest defined value, so the pick becomes fully
+    /// uniform once the Head has "outgrown" the whole defined range.
+    /// </summary>
+    private int PickWeightedByHeadValue(IReadOnlyList<int> values, int headValue)
+    {
+        int maxKnownValue = values[0];
+
+        for (int i = 1; i < values.Count; i++)
+        {
+            if (values[i] > maxKnownValue)
+            {
+                maxKnownValue = values[i];
+            }
+        }
+
+        maxKnownValue = Mathf.Max(maxKnownValue, 1);
+
+        float headProgress = Mathf.Clamp01((float)headValue / maxKnownValue);
+        float effectiveBias = headValueBiasStrength * (1f - headProgress);
+        float headTier = Mathf.Log(headValue, 2f);
+
+        float[] weights = new float[values.Count];
+        float totalWeight = 0f;
+
+        for (int i = 0; i < values.Count; i++)
+        {
+            float valueTier = Mathf.Log(values[i], 2f);
+            float tierDistance = Mathf.Abs(headTier - valueTier);
+            float weight = 1f / (1f + effectiveBias * tierDistance);
+
+            weights[i] = weight;
+            totalWeight += weight;
+        }
+
+        float roll = Random.value * totalWeight;
+        float cumulative = 0f;
+
+        for (int i = 0; i < values.Count; i++)
+        {
+            cumulative += weights[i];
+
+            if (roll <= cumulative)
+            {
+                return values[i];
+            }
+        }
+
+        // Floating point safety net - should only be reached by a hair of rounding error.
+        return values[values.Count - 1];
     }
 
     private bool TryGetValidSpawnPosition(out Vector3 result)

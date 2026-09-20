@@ -563,7 +563,6 @@ GameObject:
   - component: {fileID: 1295684225}
   - component: {fileID: 1295684226}
   - component: {fileID: 1295684227}
-  - component: {fileID: 1295684228}
   m_Layer: 0
   m_Name: player
   m_TagString: Player
@@ -633,20 +632,6 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &1295684228
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1295684224}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 92ccec53aa7444149a805375f9005185, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SnakeGrow
-  bodyPrefab: {fileID: 396630054247602656, guid: afded2319fc81ae449015179153fc60e, type: 3}
-  playerMovement: {fileID: 1295684226}
 --- !u!4 &1725514145 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5572343012874535557, guid: 87a076b831113c54ea82905b34921207, type: 3}
@@ -694,14 +679,14 @@ MonoBehaviour:
   floorTileSize: 4
   useCustomFloorHeight: 0
   floorHeight: 0
-  viewDistance: 8
-  spawnBuffer: 3
-  despawnBuffer: 6
+  viewDistance: 30
+  spawnBuffer: 20
+  despawnBuffer: 10
   updateThreshold: -1
-  maxActiveTiles: 10
+  maxActiveTiles: 5
   drawGizmos: 1
   verboseLogging: 0
-  sanityWarnTileCount: 261
+  sanityWarnTileCount: 60
 --- !u!4 &2060327052
 Transform:
   m_ObjectHideFlags: 0
@@ -743,7 +728,6 @@ MonoBehaviour:
   desiredPickupCount: 15
   minDistanceBetweenPickups: 2
   maxSpawnAttemptsPerPickup: 30
-  headValueBiasStrength: 1.5
 --- !u!1001 &8325786701565794717
 PrefabInstance:
   m_ObjectHideFlags: 0

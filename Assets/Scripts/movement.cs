@@ -19,7 +19,9 @@ public class PlayerMovement : MonoBehaviour
 {
     [Header("Snake")]
     [SerializeField] private Transform head;
-    
+
+    /// <summary>The current head Transform, exposed so companion systems (e.g. a growth/merge manager) can reference it without a duplicate Inspector assignment.</summary>
+    public Transform Head => head;
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
@@ -80,14 +82,40 @@ public class PlayerMovement : MonoBehaviour
     }
 
     /// <summary>
-    /// Re-scans the hierarchy for body segments, re-measures spacing from
-    /// their current sizes, and reseeds the path history in a straight
-    /// line behind the head. Call this again at runtime if segments are
-    /// added/removed (e.g. the snake grows) or resized.
+    /// Re-scans the hierarchy for body segments and re-measures spacing
+    /// from their current sizes. Call this again at runtime if segments
+    /// were added/removed directly in the hierarchy, or resized.
     /// </summary>
     public void RefreshBodySegments()
     {
         FindBodySegments();
+        RecomputeAndApply();
+    }
+
+    /// <summary>
+    /// Directly supplies the current ordered list of body segments
+    /// (everything after the head), bypassing the automatic hierarchy
+    /// scan. Use this when another system (e.g. a growth/merge manager)
+    /// is the authoritative source of the snake's segment order and has
+    /// just changed it - it keeps the same real path history, so growth
+    /// and merges never reset or snap the snake's movement.
+    /// </summary>
+    public void SyncBodySegments(IReadOnlyList<Transform> orderedSegments)
+    {
+        bodySegments.Clear();
+        bodySegments.AddRange(orderedSegments);
+        RecomputeAndApply();
+    }
+
+    /// <summary>
+    /// Re-measures spacing for the current bodySegments list and applies
+    /// it. Only seeds a fresh straight-line path history the very first
+    /// time this runs (when there is no history yet) - later calls, such
+    /// as after the snake grows or a merge removes a segment, leave the
+    /// real recorded path untouched so nothing ever snaps.
+    /// </summary>
+    private void RecomputeAndApply()
+    {
         ComputeSegmentSpacing();
 
         float lastDistance = cumulativeDistances.Count > 0
@@ -96,7 +124,11 @@ public class PlayerMovement : MonoBehaviour
 
         requiredHistoryLength = lastDistance + historyBuffer;
 
-        SeedInitialHistory();
+        if (pathHistory.Count == 0)
+        {
+            SeedInitialHistory();
+        }
+
         MoveBodyAlongPath();
     }
 

@@ -49,34 +49,34 @@ public class FloorManager : MonoBehaviour
 
     [Header("Tile")]
     [Tooltip("Exact world-space width/depth of one complete Floor prefab. If this doesn't match the real size of your Floor prefab, tiles will overlap or leave gaps and far more tiles than intended will be spawned. A mismatch warning is logged automatically on Play.")]
-    [SerializeField] private float floorTileSize = 100f;
+    [SerializeField] private float floorTileSize = 4f;
 
     [SerializeField] private bool useCustomFloorHeight = false;
     [SerializeField] private float floorHeight = 0f;
 
     [Header("Spawn / Despawn Radii")]
     [Tooltip("How far the camera can actually see across the ground (far clip plane, or where fog fully hides the world). Tiles inside this range must exist. Keep this proportional to Floor Tile Size -- with large tiles, this should usually only be 1-2 tile widths, not hundreds of units.")]
-    [SerializeField] private float viewDistance = 100f;
+    [SerializeField] private float viewDistance = 12f;
 
     [Tooltip("Extra margin added to View Distance for the spawn radius. This is what makes a tile appear BEFORE the camera could see it.")]
-    [SerializeField] private float spawnBuffer = 20f;
+    [SerializeField] private float spawnBuffer = 4f;
 
     [Tooltip("Extra margin added on top of the spawn radius before a tile is destroyed. This is the 'not anywhere close to coming back' zone -- keep it comfortably larger than one tile so tiles don't get destroyed and immediately recreated as the reference moves back and forth.")]
-    [SerializeField] private float despawnBuffer = 60f;
+    [SerializeField] private float despawnBuffer = 8f;
 
     [Tooltip("World distance the reference/camera must move before the grid is re-evaluated. <= 0 auto-derives from Floor Tile Size.")]
     [SerializeField] private float updateThreshold = -1f;
 
     [Header("Hard Cap")]
     [Tooltip("Absolute ceiling on how many tiles may exist at once, no matter what the radii above would otherwise produce. If the radii+tile size combination would need more tiles than this, the farthest ones are destroyed instead. This is the real, reliable dial for performance -- set the radii for how far you want to see, and rely on this to guarantee you never pay for more tiles than that.")]
-    [SerializeField] private int maxActiveTiles = 9;
+    [SerializeField] private int maxActiveTiles = 64;
 
     [Header("Debug")]
     [SerializeField] private bool drawGizmos = true;
     [Tooltip("Logs every spawn/destroy. Noisy -- use temporarily to sanity-check behaviour.")]
     [SerializeField] private bool verboseLogging = false;
     [Tooltip("Warn in the Console if the active tile count ever exceeds this. With Max Active Tiles enforced above, this should rarely fire unless Max Active Tiles itself is set high -- it exists mainly as a second opinion.")]
-    [SerializeField] private int sanityWarnTileCount = 12;
+    [SerializeField] private int sanityWarnTileCount = 80;
 
     // --- runtime state -------------------------------------------------
 

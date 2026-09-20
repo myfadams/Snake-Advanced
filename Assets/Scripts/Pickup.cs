@@ -4,8 +4,8 @@ using UnityEngine;
 /// <summary>
 /// Attach to the pickup prefab. Stores its assigned value, colors itself and writes
 /// its value onto a TMP text (expected on a child Quad), hovers slightly, rotates,
-/// destroys itself when the player touches it, and self-destructs if it stays
-/// continuously outside camera view too long.
+/// grows the snake and destroys itself when the player touches it, and self-destructs
+/// if it stays continuously outside camera view too long.
 /// The Collider on this object must have "Is Trigger" enabled.
 ///
 /// Expected hierarchy:
@@ -57,6 +57,7 @@ public class Pickup : MonoBehaviour
     private int value;
     private Vector3 spawnPosition;
     private float timeOutOfView;
+    private bool collected;
 
     // Not [SerializeField]: a pickup is instantiated at runtime from a prefab asset,
     // and Unity won't let a prefab asset hold a reference to a scene object (that's
@@ -64,6 +65,10 @@ public class Pickup : MonoBehaviour
     // PickupManager already holds a proper scene reference to the player, so it passes
     // it in here via Initialize() instead - see PickupManager.SpawnPickup().
     private Transform player;
+
+    // Fetched from the same player Transform - the component that actually grows the
+    // snake and resolves merges when this pickup is collected.
+    private SnakeGrow snakeGrow;
 
     public int Value => value;
 
@@ -109,6 +114,15 @@ public class Pickup : MonoBehaviour
         {
             Debug.LogWarning($"Pickup '{name}': no player Transform was passed in from PickupManager; " +
                               "it will never detect collection. Make sure PickupManager's Player field is assigned.");
+            return;
+        }
+
+        snakeGrow = player.GetComponent<SnakeGrow>();
+
+        if (snakeGrow == null)
+        {
+            Debug.LogWarning($"Pickup '{name}': no SnakeGrow component found on the assigned player Transform; " +
+                              "this pickup will be collectible but won't grow the snake.");
         }
     }
 
@@ -193,14 +207,20 @@ public class Pickup : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (IsPlayer(other))
+        if (!collected && IsPlayer(other))
         {
+            collected = true;
             Collect();
         }
     }
 
     private void Collect()
     {
+        if (snakeGrow != null)
+        {
+            snakeGrow.Grow(value);
+        }
+
         SpawnCollectionEffect();
         Destroy(gameObject);
     }
