@@ -39,6 +39,12 @@ public class FloorManager : MonoBehaviour
     [Header("Floor Prefab")]
     [SerializeField] private GameObject floorPrefab;
 
+    [Header("Map Material Sync")]
+    [Tooltip("Optional list of map materials if you want FloorManager to look up by index from PlayerPrefs as a fallback when testing the Game scene directly.")]
+    [SerializeField] private Material[] mapMaterials;
+
+    private Material activeFloorMaterial;
+
     [Header("Reference")]
     [Tooltip("Center of the active area (player, vehicle, character root...).")]
     [SerializeField] private Transform referenceTransform;
@@ -100,6 +106,36 @@ public class FloorManager : MonoBehaviour
 
     // --- lifecycle -----------------------------------------------------
 
+    private void InitializeFloorMaterial()
+    {
+        // 1. Try reading the static material from MapSelectManager (set in the Menu)
+        if (MapSelectManager.SelectedMapMaterial != null)
+        {
+            activeFloorMaterial = MapSelectManager.SelectedMapMaterial;
+        }
+        // 2. Fallback: read from PlayerPrefs if mapMaterials are assigned here
+        else if (mapMaterials != null && mapMaterials.Length > 0)
+        {
+            int index = PlayerPrefs.GetInt("SelectedMapIndex", 0);
+            index = Mathf.Clamp(index, 0, mapMaterials.Length - 1);
+            activeFloorMaterial = mapMaterials[index];
+        }
+    }
+
+    private void ApplyMaterialToTile(Transform tile)
+    {
+        if (activeFloorMaterial == null || tile == null) return;
+
+        Renderer[] renderers = tile.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+            {
+                renderers[i].sharedMaterial = activeFloorMaterial;
+            }
+        }
+    }
+
     private void Awake()
     {
         if (cameraTransform == null && includeCamera && Camera.main != null)
@@ -107,6 +143,7 @@ public class FloorManager : MonoBehaviour
             cameraTransform = Camera.main.transform;
         }
 
+        InitializeFloorMaterial();
         ValidateFloorTileSize();
         AdoptExistingFloors();
 
@@ -203,6 +240,7 @@ public class FloorManager : MonoBehaviour
 
         foreach (Transform floor in found)
         {
+            ApplyMaterialToTile(floor);
             Vector2Int cell = WorldToCell(floor.position);
 
             if (occupied.ContainsKey(cell))
@@ -299,6 +337,7 @@ public class FloorManager : MonoBehaviour
             {
                 GameObject go = Instantiate(floorPrefab, transform);
                 tile = go.transform;
+                ApplyMaterialToTile(tile);
                 if (verboseLogging) Debug.Log($"FloorManager: spawned tile at {cell}.", this);
             }
             else
