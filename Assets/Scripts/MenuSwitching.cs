@@ -3,9 +3,22 @@ using UnityEngine.SceneManagement;
 
 public class MenuSwitching : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-     [SerializeField] private GameObject menuPanel;
-      [SerializeField] private GameObject mapsPanel;
+    [SerializeField] private GameObject menuPanel;
+    [SerializeField] private GameObject mapsPanel;
+
+    private void Start()
+    {
+        if (buttonFunctions.lastButtonPressed == "SinglePlayer" || buttonFunctions.lastButtonPressed == "Maps" || buttonFunctions.lastButtonPressed == "MapSelect")
+        {
+            if (menuPanel != null) menuPanel.SetActive(false);
+            if (mapsPanel != null)
+            {
+                mapsPanel.SetActive(true);
+                Animator anim = mapsPanel.GetComponent<Animator>();
+                if (anim != null) anim.Play("mapsFadeIn");
+            }
+        }
+    }
     public void NavigateAwayFromMenu()
     {
         switch (buttonFunctions.lastButtonPressed)

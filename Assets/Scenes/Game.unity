@@ -326,7 +326,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Overcharge
+  m_text: Shed
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
   m_sharedMaterial: {fileID: 9037805962105377079, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
@@ -353,7 +353,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 36.05
+  m_fontSize: 43.7
   m_fontSizeBase: 20
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -664,7 +664,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   player: {fileID: 1295684225}
+  followHead: 1
+  offset: {x: 0, y: 0, z: 0}
+  useInitialOffset: 1
+  lockHeight: 1
+  fixedHeight: 4.77
   smoothSpeed: 5
+  smoothTime: 0.12
+  maxSpeed: 40
+  maxAllowedDistance: 15
 --- !u!1 &406514843
 GameObject:
   m_ObjectHideFlags: 0
@@ -1453,10 +1461,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1946397697}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -79.01562, y: 89.119}
-  m_SizeDelta: {x: 141.9688, y: 37.7372}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: -29.015617, y: 39.119003}
+  m_SizeDelta: {x: 141.9688, y: 37.737198}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &808108684
 MonoBehaviour:
@@ -1678,10 +1686,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1946397697}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 73.716, y: 89.119}
-  m_SizeDelta: {x: 141.9688, y: 37.7372}
+  m_AnchorMin: {x: 1, y: 1}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 23.716003, y: 39.119003}
+  m_SizeDelta: {x: 141.9688, y: 37.737198}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &940143055
 MonoBehaviour:
@@ -2666,8 +2674,9 @@ GameObject:
   - component: {fileID: 1619860035}
   - component: {fileID: 1619860037}
   - component: {fileID: 1619860038}
+  - component: {fileID: 1619860039}
   m_Layer: 5
-  m_Name: PowerUp
+  m_Name: Shed
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2688,9 +2697,9 @@ RectTransform:
   - {fileID: 277010370}
   m_Father: {fileID: 1484793128}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 1}
-  m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -251.1}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: 0, y: 94.899994}
   m_SizeDelta: {x: 300, y: 103.5}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1619860035
@@ -2774,7 +2783,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1619860035}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1619860039}
+        m_TargetAssemblyTypeName: buttonFunctions, Assembly-CSharp
+        m_MethodName: Shed
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1619860038
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2789,6 +2810,28 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+--- !u!114 &1619860039
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1619860033}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2926bd604bbf5b24fa5f2f3ab0bed7b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::buttonFunctions
+  uiAnimator: {fileID: 0}
+  menuLeaveAnimation: {fileID: 0}
+  mapLeaveAnimation: {fileID: 0}
+  mapLeft: mapLeft
+  mapRight: MapRight
+  mapNumberText: {fileID: 0}
+  mapNameText: {fileID: 0}
+  mapSelectManager: {fileID: 0}
+  shedButton: {fileID: 0}
+  gameSceneName: Game
 --- !u!1 &1628699931
 GameObject:
   m_ObjectHideFlags: 0
@@ -3252,8 +3295,27 @@ MonoBehaviour:
   healthBarImage: {fileID: 1522934100}
   spriteScriptableObj: {fileID: 11400000, guid: 2dd2547a5e1d0434d8b12216d9a247aa, type: 2}
   fallbackSprites: []
+  maxSnakeLength: 10
   maxAllowableCubes: 10
+  targetSnakeLength: 8
+  initialStakeTime: 30
+  timeReductionPerExtraBlock: 5
   snakeGrow: {fileID: 1295684228}
+  countdownText: {fileID: 2135214148}
+  warningMessageText: {fileID: 7190335371266065503, guid: 8fe67c6965f862946a86465a721b786a, type: 3}
+  warningUI: {fileID: 4337536832225034331, guid: 8fe67c6965f862946a86465a721b786a, type: 3}
+  shedButton: {fileID: 1619860033}
+  gameOverPopup: {fileID: 2671484250688487167, guid: f4531648e8bf8cd4f967b0ba590bb2c4, type: 3}
+  gameOverBackground: {fileID: 559958126}
+  gameOverBackgroundOpacity: 0.8
+  normalTimerColor: {r: 1, g: 1, b: 1, a: 1}
+  warningTimerColor: {r: 1, g: 0.6, b: 0.1, a: 1}
+  criticalTimerColor: {r: 1, g: 0, b: 0, a: 1}
+  limitReachedMessage: 'LENGTH LIMIT REACHED!
+
+    SHRINK TO {0} BLOCKS!'
+  tooLongMessage: TOO LONG! SHRINK NOW!
+  warningAnimationDuration: 0.3
   cubesText: {fileID: 940143055}
   textFormat: '{0} / {1}'
   decreaseStepDelay: 0.08

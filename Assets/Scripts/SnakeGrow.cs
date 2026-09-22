@@ -129,6 +129,27 @@ public class SnakeGrow : MonoBehaviour
         OnSnakeCubesChanged?.Invoke(TotalCubeCount);
     }
 
+    /// <summary>
+    /// The current numerical value of the Head (e.g. 2, 4, 8, 16).
+    /// </summary>
+    public int HeadValue
+    {
+        get
+        {
+            if (head != null)
+            {
+                body b = head.GetComponent<body>();
+                if (b != null) return b.Value;
+            }
+            return 2;
+        }
+    }
+
+    /// <summary>
+    /// Transform of the Head segment.
+    /// </summary>
+    public Transform HeadSegment => head;
+
     // segments[0] is always the Head; segments[1..] are the body, in the
     // same order as the physical hierarchy under Player.
     private readonly List<Transform> segments = new List<Transform>();
@@ -444,6 +465,141 @@ public class SnakeGrow : MonoBehaviour
         Vector3 ejectDir = (right * (sideSign * 0.8f) + Vector3.up * 0.9f - forward * 0.2f).normalized;
 
         Vector3 targetPos = startPos + ejectDir * damageEjectDistance;
+        Vector3 randomTorque = new Vector3(
+            Random.Range(-180f, 180f),
+            Random.Range(-180f, 180f),
+            Random.Range(-180f, 180f)
+        );
+
+        float elapsed = 0f;
+        while (elapsed < damageEjectDuration)
+        {
+            yield return null;
+            if (ejectedTransform == null)
+                yield break;
+
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / damageEjectDuration);
+            float ease = Mathf.SmoothStep(0f, 1f, t);
+
+            ejectedTransform.position = Vector3.Lerp(startPos, targetPos, ease);
+            ejectedTransform.rotation = startRot * Quaternion.Euler(randomTorque * ease);
+            ejectedTransform.localScale = Vector3.Lerp(startScale, Vector3.zero, ease);
+        }
+
+        if (ejectedTransform != null)
+        {
+            Destroy(ejectedTransform.gameObject);
+        }
+    }
+
+    /// <summary>
+    /// Reduces the snake body to targetSegmentCount blocks (e.g. 8 blocks) as part of the emergency Shed mechanic.
+    /// Excess blocks detach from the tail with a smooth visible animation (drifting backward/outward, tumbling,
+    /// shrinking, and being destroyed), while the Head's value is smoothly halved.
+    /// </summary>
+    public void PerformShed(int targetSegmentCount, System.Action onComplete = null)
+    {
+        EnsureInitialized();
+
+        if (segments.Count == 0)
+        {
+            DetectSegments();
+        }
+
+        StartCoroutine(ShedCoroutine(targetSegmentCount, onComplete));
+    }
+
+    private IEnumerator ShedCoroutine(int targetSegmentCount, System.Action onComplete)
+    {
+        isProcessing = true;
+
+        int removeCount = segments.Count - targetSegmentCount;
+        List<Transform> blocksToEject = new List<Transform>();
+
+        if (removeCount > 0)
+        {
+            // Gather the excess segments from the tail
+            int startIndex = Mathf.Max(1, segments.Count - removeCount);
+            for (int i = segments.Count - 1; i >= startIndex; i--)
+            {
+                if (i < segments.Count && segments[i] != null && segments[i] != head)
+                {
+                    Transform seg = segments[i];
+                    blocksToEject.Add(seg);
+                    segments.RemoveAt(i);
+                }
+            }
+
+            // Immediately update hierarchy and sync PlayerMovement to the remaining segments
+            UpdateHierarchyOrder();
+            SyncMovement();
+            NotifyCubesChanged();
+        }
+
+        // Halve head value
+        body headBody = head != null ? head.GetComponent<body>() : null;
+        int currentHeadVal = headBody != null ? headBody.Value : 2;
+        int newHeadVal = Mathf.Max(2, currentHeadVal / 2);
+
+        // Animate Head value reduction pop
+        if (headBody != null && head != null)
+        {
+            StartCoroutine(AnimateHeadDamage(headBody, newHeadVal));
+        }
+
+        // Animate all removed blocks detaching and flying away smoothly
+        for (int i = 0; i < blocksToEject.Count; i++)
+        {
+            Transform ejectedBlock = blocksToEject[i];
+            if (ejectedBlock != null)
+            {
+                // Disable colliders so they don't interact with pickups or hazards
+                Collider col = ejectedBlock.GetComponent<Collider>();
+                if (col != null) col.enabled = false;
+
+                ejectedBlock.SetParent(null);
+                // Stagger or angle each block slightly so they disperse outward and backward
+                float angleOffset = (i - (blocksToEject.Count - 1) * 0.5f) * 30f;
+                StartCoroutine(AnimateShedSegmentEjection(ejectedBlock, angleOffset));
+            }
+        }
+
+        // Wait for ejections and head animation to finish
+        float waitDuration = Mathf.Max(damageEjectDuration, headDamagePunchDuration);
+        yield return new WaitForSeconds(waitDuration);
+
+        isProcessing = false;
+
+        // Check if any merges are available now that length is reduced
+        if (FindMergeablePairIndex() != -1 && gameObject.activeInHierarchy)
+        {
+            StartCoroutine(ProcessGrowthAndMergesCoroutine());
+        }
+
+        onComplete?.Invoke();
+    }
+
+    /// <summary>
+    /// Smoothly animates a shed body block flying backward/sideways, tumbling, and shrinking to zero before being destroyed.
+    /// </summary>
+    private IEnumerator AnimateShedSegmentEjection(Transform ejectedTransform, float angleOffset)
+    {
+        if (ejectedTransform == null)
+            yield break;
+
+        Vector3 startPos = ejectedTransform.position;
+        Vector3 startScale = ejectedTransform.localScale;
+        Quaternion startRot = ejectedTransform.rotation;
+
+        Vector3 forward = head != null ? head.forward : Vector3.forward;
+        Vector3 right = head != null ? head.right : Vector3.right;
+
+        // Fly backward and outward away from the snake
+        Quaternion rotOffset = Quaternion.AngleAxis(angleOffset, Vector3.up);
+        Vector3 flyDir = rotOffset * (-forward * 0.8f + right * (angleOffset >= 0 ? 0.6f : -0.6f) + Vector3.up * 0.7f).normalized;
+
+        Vector3 targetPos = startPos + flyDir * (damageEjectDistance * 1.5f);
         Vector3 randomTorque = new Vector3(
             Random.Range(-180f, 180f),
             Random.Range(-180f, 180f),

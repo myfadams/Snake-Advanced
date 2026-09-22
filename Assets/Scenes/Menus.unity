@@ -662,6 +662,11 @@ MonoBehaviour:
   mapNumberText: {fileID: 0}
   mapNameText: {fileID: 0}
   mapSelectManager: {fileID: 0}
+  shedButton: {fileID: 0}
+  quitPopupPrefab: {fileID: 0}
+  quitConfirmMessage: Are you sure you want to quit?
+  mainMenuUI: {fileID: 0}
+  popupAnimationDuration: 0.25
   gameSceneName: Game
 --- !u!1 &204590328
 GameObject:
@@ -1342,6 +1347,13 @@ MonoBehaviour:
   colorForFour: {r: 0, g: 1, b: 0, a: 1}
   colorForEight: {r: 1, g: 0.5, b: 0, a: 1}
   colorForSixteen: {r: 1, g: 0, b: 0, a: 1}
+  pickupScore: 5
+  headMergeScore: 25
+  bodyMergeScore: 10
+  scoreText: {fileID: 0}
+  mapNameText: {fileID: 0}
+  maxAnimationDuration: 0.35
+  minCountSpeed: 25
 --- !u!4 &406514845
 Transform:
   m_ObjectHideFlags: 0
@@ -1635,6 +1647,7 @@ GameObject:
   - component: {fileID: 549705994}
   - component: {fileID: 549705997}
   - component: {fileID: 549705998}
+  - component: {fileID: 549705999}
   m_Layer: 5
   m_Name: Quit
   m_TagString: Untagged
@@ -1705,7 +1718,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 549705995}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 549705999}
+        m_TargetAssemblyTypeName: buttonFunctions, Assembly-CSharp
+        m_MethodName: QuitGame
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &549705995
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1855,6 +1880,32 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &549705999
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 549705992}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2926bd604bbf5b24fa5f2f3ab0bed7b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::buttonFunctions
+  uiAnimator: {fileID: 0}
+  menuLeaveAnimation: {fileID: 0}
+  mapLeaveAnimation: {fileID: 0}
+  mapLeft: mapLeft
+  mapRight: MapRight
+  mapNumberText: {fileID: 0}
+  mapNameText: {fileID: 0}
+  mapSelectManager: {fileID: 0}
+  shedButton: {fileID: 0}
+  quitPopupPrefab: {fileID: 2671484250688487167, guid: ea2d60e9b4c66d646988b6d081e1a883, type: 3}
+  quitConfirmMessage: Are you sure you want to quit?
+  mainMenuUI: {fileID: 1431907807}
+  popupAnimationDuration: 0.25
+  gameSceneName: Game
 --- !u!1 &666718152
 GameObject:
   m_ObjectHideFlags: 0
@@ -2121,6 +2172,11 @@ MonoBehaviour:
   mapNumberText: {fileID: 0}
   mapNameText: {fileID: 0}
   mapSelectManager: {fileID: 0}
+  shedButton: {fileID: 0}
+  quitPopupPrefab: {fileID: 0}
+  quitConfirmMessage: Are you sure you want to quit?
+  mainMenuUI: {fileID: 0}
+  popupAnimationDuration: 0.25
   gameSceneName: Game
 --- !u!1 &666836273
 GameObject:
@@ -2388,6 +2444,11 @@ MonoBehaviour:
   mapNumberText: {fileID: 519377219}
   mapNameText: {fileID: 1010244323}
   mapSelectManager: {fileID: 305522581}
+  shedButton: {fileID: 0}
+  quitPopupPrefab: {fileID: 0}
+  quitConfirmMessage: Are you sure you want to quit?
+  mainMenuUI: {fileID: 0}
+  popupAnimationDuration: 0.25
   gameSceneName: GameScene
 --- !u!1 &702787313
 GameObject:
@@ -3617,6 +3678,11 @@ MonoBehaviour:
   mapNumberText: {fileID: 0}
   mapNameText: {fileID: 0}
   mapSelectManager: {fileID: 0}
+  shedButton: {fileID: 0}
+  quitPopupPrefab: {fileID: 0}
+  quitConfirmMessage: Are you sure you want to quit?
+  mainMenuUI: {fileID: 0}
+  popupAnimationDuration: 0.25
   gameSceneName: Game
 --- !u!1 &1473464959
 GameObject:
@@ -3987,6 +4053,11 @@ MonoBehaviour:
   mapNumberText: {fileID: 519377219}
   mapNameText: {fileID: 1010244323}
   mapSelectManager: {fileID: 305522581}
+  shedButton: {fileID: 0}
+  quitPopupPrefab: {fileID: 0}
+  quitConfirmMessage: Are you sure you want to quit?
+  mainMenuUI: {fileID: 0}
+  popupAnimationDuration: 0.25
   gameSceneName: GameScene
 --- !u!1 &1535146223
 GameObject:
