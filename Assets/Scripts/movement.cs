@@ -105,6 +105,19 @@ public class PlayerMovement : MonoBehaviour
         turnTightness = Mathf.Max(turnTightness, 0.1f);
     }
 
+    private Rigidbody rb;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.constraints = RigidbodyConstraints.FreezeRotationX |
+                             RigidbodyConstraints.FreezeRotationZ |
+                             RigidbodyConstraints.FreezePositionY;
+        }
+    }
+
     private void Start()
     {
         RefreshBodySegments();
