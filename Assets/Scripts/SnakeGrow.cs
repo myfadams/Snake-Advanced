@@ -96,6 +96,39 @@ public class SnakeGrow : MonoBehaviour
     /// </summary>
     public event System.Action OnDeathCondition;
 
+    public static SnakeGrow Instance { get; private set; }
+
+    /// <summary>
+    /// Event triggered whenever the snake's cube count (including head) changes.
+    /// </summary>
+    public static event System.Action<int> OnSnakeCubesChanged;
+
+    /// <summary>
+    /// Total number of cubes currently in the snake, including the head.
+    /// </summary>
+    public int TotalCubeCount
+    {
+        get
+        {
+            if (segments != null && segments.Count > 0)
+            {
+                int validCount = 0;
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    if (segments[i] != null) validCount++;
+                }
+                return Mathf.Max(1, validCount);
+            }
+
+            return Mathf.Max(1, transform.childCount);
+        }
+    }
+
+    private void NotifyCubesChanged()
+    {
+        OnSnakeCubesChanged?.Invoke(TotalCubeCount);
+    }
+
     // segments[0] is always the Head; segments[1..] are the body, in the
     // same order as the physical hierarchy under Player.
     private readonly List<Transform> segments = new List<Transform>();
@@ -107,7 +140,16 @@ public class SnakeGrow : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
         EnsureInitialized();
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 
     private void Start()
@@ -115,6 +157,7 @@ public class SnakeGrow : MonoBehaviour
         EnsureInitialized();
         DetectSegments();
         UpdateHierarchyOrder();
+        NotifyCubesChanged();
 
         // Check if the scene already contains any adjacent mergeable pairs
         if (FindMergeablePairIndex() != -1 && !isProcessing && gameObject.activeInHierarchy)
@@ -320,6 +363,7 @@ public class SnakeGrow : MonoBehaviour
         // Remove from logical segments list immediately
         segments.RemoveAt(segmentIndex);
         UpdateHierarchyOrder();
+        NotifyCubesChanged();
 
         // Calculate gap size to close in PlayerMovement
         float gapToClose = playerMovement != null ? playerMovement.GetDefaultGap() : 0.3f;
@@ -633,6 +677,7 @@ public class SnakeGrow : MonoBehaviour
 
         // Remove the rear block
         segments.RemoveAt(i + 1);
+        NotifyCubesChanged();
         if (segmentB != null)
         {
             segmentB.gameObject.SetActive(false);
@@ -750,6 +795,7 @@ public class SnakeGrow : MonoBehaviour
 
         // Synchronize the physical Player hierarchy order immediately
         UpdateHierarchyOrder();
+        NotifyCubesChanged();
 
         return newSegment;
     }

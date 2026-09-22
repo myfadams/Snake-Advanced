@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55fe996c8034d4e4fb2785f7d1314603, type: 3}
+  m_Name: HeallthBarTextures
+  m_EditorClassIdentifier: Assembly-CSharp::MaterialsList
+  materials: []
+  chessEnvironmentProps: []
+  treeProps: []
+  carProps: []
+  ScifiProps: []
+  AnyProp: []
+  HealthBars:
+  - {fileID: -245781096, guid: 311406d6161595c43bf5a5a6f37e11f3, type: 3}
+  - {fileID: -1791109227, guid: 311406d6161595c43bf5a5a6f37e11f3, type: 3}
+  - {fileID: -1230174523, guid: 311406d6161595c43bf5a5a6f37e11f3, type: 3}
+  - {fileID: -1377204300, guid: 311406d6161595c43bf5a5a6f37e11f3, type: 3}
+  - {fileID: -2068179238, guid: 311406d6161595c43bf5a5a6f37e11f3, type: 3}
+  - {fileID: 1036628467, guid: 311406d6161595c43bf5a5a6f37e11f3, type: 3}
