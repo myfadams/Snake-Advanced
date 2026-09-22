@@ -216,6 +216,11 @@ public class Pickup : MonoBehaviour
 
     private void Collect()
     {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.AddPickupScore();
+        }
+
         if (snakeGrow != null)
         {
             snakeGrow.Grow(value);

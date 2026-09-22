@@ -698,6 +698,13 @@ MonoBehaviour:
   colorForFour: {r: 0, g: 1, b: 0, a: 1}
   colorForEight: {r: 1, g: 0.5, b: 0, a: 1}
   colorForSixteen: {r: 1, g: 0, b: 0, a: 1}
+  pickupScore: 5
+  headMergeScore: 25
+  bodyMergeScore: 10
+  scoreText: {fileID: 1820509733}
+  mapNameText: {fileID: 2108811737}
+  maxAnimationDuration: 0.35
+  minCountSpeed: 25
 --- !u!4 &406514845
 Transform:
   m_ObjectHideFlags: 0

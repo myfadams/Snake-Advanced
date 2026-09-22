@@ -618,6 +618,19 @@ public class SnakeGrow : MonoBehaviour
             currentBody.SetValue(currentBody.Value * 2);
         }
 
+        // Award merge score based on whether the head was involved
+        if (GameManager.Instance != null)
+        {
+            if (isHeadMerge)
+            {
+                GameManager.Instance.AddHeadMergeScore();
+            }
+            else
+            {
+                GameManager.Instance.AddBodyMergeScore();
+            }
+        }
+
         // Remove the rear block
         segments.RemoveAt(i + 1);
         if (segmentB != null)
