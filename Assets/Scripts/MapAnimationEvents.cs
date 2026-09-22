@@ -24,6 +24,11 @@ public class MapAnimationEvents : MonoBehaviour
     /// </summary>
     public void ApplyMaterialChange()
     {
+        if (mapSelectManager == null)
+        {
+            mapSelectManager = MapSelectManager.Instance != null ? MapSelectManager.Instance : FindObjectOfType<MapSelectManager>();
+        }
+
         if (mapSelectManager != null)
         {
             mapSelectManager.ApplyMaterialChange();

@@ -476,7 +476,7 @@ public class PickupManager : MonoBehaviour
         {
             Vector3 candidate = GetRandomPositionNearPlayer();
 
-            if (!IsFarEnoughFromOtherPickups(candidate))
+            if (!IsFarEnoughFromOtherPickups(candidate) || IsPositionBlockedBySceneObject(candidate))
             {
                 continue;
             }
@@ -593,6 +593,31 @@ public class PickupManager : MonoBehaviour
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Checks whether a candidate spawn position is already occupied by an environment prop,
+    /// player body segment, or other scene obstacle (excluding the ground).
+    /// </summary>
+    private bool IsPositionBlockedBySceneObject(Vector3 candidate)
+    {
+        Collider[] hits = Physics.OverlapSphere(candidate, 0.7f, ~0, QueryTriggerInteraction.Collide);
+        if (hits == null || hits.Length == 0) return false;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider col = hits[i];
+            if (col == null) continue;
+
+            string colName = col.name.ToLowerInvariant();
+            if (colName.StartsWith("ground") || colName.StartsWith("floor")) continue;
+            if (col.CompareTag("Ground")) continue;
+
+            // Blocked by an existing scene object (prop, player, obstacle)
+            return true;
+        }
+
+        return false;
     }
 
     private void OnDrawGizmosSelected()

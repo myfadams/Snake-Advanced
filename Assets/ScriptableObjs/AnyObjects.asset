@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55fe996c8034d4e4fb2785f7d1314603, type: 3}
+  m_Name: AnyObjects
+  m_EditorClassIdentifier: Assembly-CSharp::MaterialsList
+  materials: []
+  chessEnvironmentProps:
+  - {fileID: 7737889586305433288, guid: 62a5978a3c465634b8fd4f8639226f5d, type: 3}
+  - {fileID: 7991379656613733389, guid: fa39ce782fa8eef4fa437c5ea8f0af2c, type: 3}
+  - {fileID: 317004703343176632, guid: e3e61d74092e30446b2c5d40ec97c356, type: 3}
+  treeProps:
+  - {fileID: 2141615629118380659, guid: e194a7a544bfcf64e9c1d37ab69a57f1, type: 3}
+  - {fileID: 585584009737200844, guid: aa7fe803b89d81046a68ea5cdde0cd9c, type: 3}
+  - {fileID: 5171819333398145986, guid: 168636fd1c7b1dc499f231a12f163d46, type: 3}
+  carProps:
+  - {fileID: 1824089609273460792, guid: 3f93ad02b6976cd4ab11de294fb09075, type: 3}
+  - {fileID: 5487655486922593511, guid: b56c2df36990de44690a99c04752747f, type: 3}
+  - {fileID: 6518477837395703177, guid: a814ab369eec084468860f8d33988a8c, type: 3}
+  - {fileID: 6071335630498304746, guid: ad8f7f1aef281c84a926201d3cd2c64a, type: 3}
+  ScifiProps:
+  - {fileID: 4117105392969933306, guid: a6e7361c97dbf8a4c976ffafa3165546, type: 3}
+  - {fileID: 4429370830813889876, guid: 5352f9252c640a444afb7b89a2256a5b, type: 3}
+  - {fileID: 5865108278613622248, guid: 767fed9b3d2d75f4faf4cf1e7826bb04, type: 3}
+  - {fileID: 4624482419100774984, guid: 6206d135240ff5b40adcf651a43a43ad, type: 3}
+  - {fileID: 8734908068850519861, guid: 72c363e42754e774398b5536370d3ee9, type: 3}
+  - {fileID: 6425597180898051484, guid: f4e000ef83cf4084a8a309d626b6077a, type: 3}
+  - {fileID: 1592512833404804056, guid: 59189e46de99d644bbdb1d17c198aac2, type: 3}
+  - {fileID: 6894420621442359973, guid: 297e019c80447df4e8eebe0d386076d7, type: 3}
+  AnyProp:
+  - {fileID: 6795449767735627909, guid: a51a1507e135c474ab1bd68dd11330a3, type: 3}
+  - {fileID: 5585236588221695575, guid: 0f2da4c51f386a04db4e8d65ae544e5d, type: 3}
+  - {fileID: 743080498313837265, guid: 7aeed15ede1dd374d9a41340cba8a3ef, type: 3}
+  - {fileID: 8601597895005287122, guid: cd4d84378d9cee940bea222edc7ddc73, type: 3}
+  - {fileID: 320885738364841172, guid: cc016a9d4a53f8449b4700fca5fcafcf, type: 3}

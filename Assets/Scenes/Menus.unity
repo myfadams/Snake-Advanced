@@ -659,6 +659,8 @@ MonoBehaviour:
   mapLeaveAnimation: {fileID: 1473464962}
   mapLeft: mapLeft
   mapRight: MapRight
+  mapNumberText: {fileID: 0}
+  mapNameText: {fileID: 0}
   mapSelectManager: {fileID: 0}
   gameSceneName: Game
 --- !u!1 &204590328
@@ -893,6 +895,8 @@ MonoBehaviour:
   - {fileID: 2100000, guid: 56999cdaff4097d4bb19e33537e777ec, type: 2}
   - {fileID: 2100000, guid: 78c0c186aba0b3d46972180f12a1d73e, type: 2}
   groundPrefabMaterial: {fileID: 1598273937232585380, guid: b5076548fc2faf7458f8d0298b0ac28a, type: 3}
+  mapNumberText: {fileID: 519377219}
+  mapNameText: {fileID: 1010244323}
   activeMapIndex: 0
 --- !u!1 &330585543
 GameObject:
@@ -1537,7 +1541,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: MAP 02 0F 06
+  m_text: MAP 01 OF 05
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
   m_sharedMaterial: {fileID: 9037805962105377079, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
@@ -2114,6 +2118,8 @@ MonoBehaviour:
   mapLeaveAnimation: {fileID: 1473464962}
   mapLeft: mapLeft
   mapRight: MapRight
+  mapNumberText: {fileID: 0}
+  mapNameText: {fileID: 0}
   mapSelectManager: {fileID: 0}
   gameSceneName: Game
 --- !u!1 &666836273
@@ -2379,7 +2385,9 @@ MonoBehaviour:
   mapLeaveAnimation: {fileID: 0}
   mapLeft: mapLeft
   mapRight: MapRight
-  mapSelectManager: {fileID: 0}
+  mapNumberText: {fileID: 519377219}
+  mapNameText: {fileID: 1010244323}
+  mapSelectManager: {fileID: 305522581}
   gameSceneName: GameScene
 --- !u!1 &702787313
 GameObject:
@@ -2881,7 +2889,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: WHISPERING CANOPY
+  m_text: Checkmate
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
   m_sharedMaterial: {fileID: 9037805962105377079, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
@@ -2911,9 +2919,9 @@ MonoBehaviour:
   m_fontSize: 40
   m_fontSizeBase: 40
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
-  m_fontSizeMax: 72
+  m_fontSizeMax: 40
   m_fontStyle: 0
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
@@ -3606,6 +3614,8 @@ MonoBehaviour:
   mapLeaveAnimation: {fileID: 0}
   mapLeft: mapLeft
   mapRight: MapRight
+  mapNumberText: {fileID: 0}
+  mapNameText: {fileID: 0}
   mapSelectManager: {fileID: 0}
   gameSceneName: Game
 --- !u!1 &1473464959
@@ -3974,6 +3984,8 @@ MonoBehaviour:
   mapLeaveAnimation: {fileID: 0}
   mapLeft: mapLeft
   mapRight: mapLeft
+  mapNumberText: {fileID: 519377219}
+  mapNameText: {fileID: 1010244323}
   mapSelectManager: {fileID: 305522581}
   gameSceneName: GameScene
 --- !u!1 &1535146223

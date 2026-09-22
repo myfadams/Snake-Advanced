@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55fe996c8034d4e4fb2785f7d1314603, type: 3}
+  m_Name: Abandoned
+  m_EditorClassIdentifier: Assembly-CSharp::MaterialsList
+  materials: []
+  chessEnvironmentProps: []
+  treeProps: []
+  carProps:
+  - {fileID: 5487655486922593511, guid: b56c2df36990de44690a99c04752747f, type: 3}
+  - {fileID: 1824089609273460792, guid: 3f93ad02b6976cd4ab11de294fb09075, type: 3}
+  - {fileID: 6518477837395703177, guid: a814ab369eec084468860f8d33988a8c, type: 3}
+  - {fileID: 6071335630498304746, guid: ad8f7f1aef281c84a926201d3cd2c64a, type: 3}
+  ScifiProps: []
+  AnyProp: []

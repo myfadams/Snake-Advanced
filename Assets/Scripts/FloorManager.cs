@@ -33,11 +33,64 @@ using UnityEngine;
 /// Attach to the "Environment" GameObject.
 /// Grid convention: Vector2Int(x, y) -> world (X, Z). Y is floor height.
 /// </summary>
+public enum MapEnvironmentType
+{
+    ClassicChess,
+    AbandonedWasteland,
+    NeonSciFi,
+    ForestNature
+}
+
+public enum EnvironmentMode
+{
+    Auto,
+    Manual
+}
+
+/// <summary>
+/// Marker component attached to instantiated props so they can be identified and cleaned up.
+/// </summary>
+public class FloorPropMarker : MonoBehaviour { }
+
 [DisallowMultipleComponent]
 public class FloorManager : MonoBehaviour
 {
     [Header("Floor Prefab")]
     [SerializeField] private GameObject floorPrefab;
+
+    [Header("Environment Prop Spawning")]
+    [Tooltip("MaterialsList ScriptableObject asset containing prop prefab categories.")]
+    [SerializeField] private MaterialsList materialsList;
+
+    [Tooltip("Minimum number of props to spawn per floor tile.")]
+    [SerializeField] private int minimumProps = 1;
+
+    [Tooltip("Maximum number of props to spawn per floor tile.")]
+    [SerializeField] private int maximumProps = 3;
+
+    [Tooltip("Minimum distance required between props on the same floor tile.")]
+    [SerializeField] private float minimumPropDistance = 1.0f;
+
+    [Tooltip("Margin from the edges of the floor tile where props will not spawn.")]
+    [SerializeField] private float edgeMargin = 0.4f;
+
+    [Tooltip("Vertical offset applied to prop placement. Positive raises props, negative lowers them.")]
+    [SerializeField] private float propVerticalOffset = 0f;
+
+    [Tooltip("Automatic map detection mode or manual override.")]
+    [SerializeField] private EnvironmentMode environmentMode = EnvironmentMode.Auto;
+
+    [Tooltip("Manual environment type used if Environment Mode is set to Manual.")]
+    [SerializeField] private MapEnvironmentType manualEnvironment = MapEnvironmentType.ClassicChess;
+
+    public MaterialsList MaterialsList { get => materialsList; set => materialsList = value; }
+    public int MinimumProps { get => minimumProps; set => minimumProps = value; }
+    public int MaximumProps { get => maximumProps; set => maximumProps = value; }
+    public float MinimumPropDistance { get => minimumPropDistance; set => minimumPropDistance = value; }
+    public float EdgeMargin { get => edgeMargin; set => edgeMargin = value; }
+    public float PropVerticalOffset { get => propVerticalOffset; set => propVerticalOffset = value; }
+    public EnvironmentMode EnvironmentModeSetting { get => environmentMode; set => environmentMode = value; }
+    public MapEnvironmentType ManualEnvironment { get => manualEnvironment; set => manualEnvironment = value; }
 
     [Header("Map Material Sync")]
     [Tooltip("Optional list of map materials if you want FloorManager to look up by index from PlayerPrefs as a fallback when testing the Game scene directly.")]
@@ -253,6 +306,7 @@ public class FloorManager : MonoBehaviour
             }
 
             occupied.Add(cell, floor);
+            SpawnPropsForFloor(floor);
         }
     }
 
@@ -332,12 +386,19 @@ public class FloorManager : MonoBehaviour
                 Vector2Int from = staleScratch[staleIndex++];
                 tile = occupied[from];
                 occupied.Remove(from);
+                ClearProps(tile);
+                tile.position = CellToWorld(cell);
+                occupied[cell] = tile;
+                SpawnPropsForFloor(tile);
             }
             else if (floorPrefab != null)
             {
                 GameObject go = Instantiate(floorPrefab, transform);
                 tile = go.transform;
+                tile.position = CellToWorld(cell);
+                occupied[cell] = tile;
                 ApplyMaterialToTile(tile);
+                SpawnPropsForFloor(tile);
                 if (verboseLogging) Debug.Log($"FloorManager: spawned tile at {cell}.", this);
             }
             else
@@ -345,9 +406,6 @@ public class FloorManager : MonoBehaviour
                 Debug.LogWarning("FloorManager: a tile is needed but no Floor Prefab is assigned.", this);
                 continue;
             }
-
-            tile.position = CellToWorld(cell);
-            occupied[cell] = tile;
         }
 
         // Genuine surplus: too far away to be reused this pass, so destroy it
@@ -358,6 +416,7 @@ public class FloorManager : MonoBehaviour
             Transform tile = occupied[from];
             occupied.Remove(from);
             if (verboseLogging) Debug.Log($"FloorManager: destroyed tile at {from}.", this);
+            ClearProps(tile);
             Destroy(tile.gameObject);
         }
 
@@ -437,6 +496,7 @@ public class FloorManager : MonoBehaviour
             Transform tile = occupied[cell];
             occupied.Remove(cell);
             if (verboseLogging) Debug.Log($"FloorManager: over Max Active Tiles cap, destroyed tile at {cell}.", this);
+            ClearProps(tile);
             Destroy(tile.gameObject);
         }
     }
@@ -483,6 +543,498 @@ public class FloorManager : MonoBehaviour
         if (despawnBuffer < 0f) despawnBuffer = 0f;
         if (maxActiveTiles < 1) maxActiveTiles = 1;
         if (sanityWarnTileCount < 1) sanityWarnTileCount = 1;
+        if (minimumProps < 0) minimumProps = 0;
+        if (maximumProps < minimumProps) maximumProps = minimumProps;
+        if (minimumPropDistance < 0f) minimumPropDistance = 0f;
+        if (edgeMargin < 0f) edgeMargin = 0f;
+    }
+
+    // --- environment prop spawning ---------------------------------------
+
+    /// <summary>
+    /// Determines the active map environment type using active floor material, MapSelectManager, or PlayerPrefs fallback.
+    /// </summary>
+    public MapEnvironmentType GetCurrentEnvironmentType()
+    {
+        if (environmentMode == EnvironmentMode.Manual)
+        {
+            return manualEnvironment;
+        }
+
+        // 1. Check activeFloorMaterial or MapSelectManager.SelectedMapMaterial
+        Material mat = activeFloorMaterial != null ? activeFloorMaterial : MapSelectManager.SelectedMapMaterial;
+        if (mat != null)
+        {
+            string matName = mat.name.ToLowerInvariant();
+            if (matName.Contains("neon") || matName.Contains("scifi"))
+            {
+                return MapEnvironmentType.NeonSciFi;
+            }
+            if (matName.Contains("chess"))
+            {
+                return MapEnvironmentType.ClassicChess;
+            }
+            if (matName.Contains("pavement") || matName.Contains("overgrown") || matName.Contains("mud") || matName.Contains("abandoned") || matName.Contains("waste") || matName.Contains("car"))
+            {
+                return MapEnvironmentType.AbandonedWasteland;
+            }
+            if (matName.Contains("ground") || matName.Contains("nature") || matName.Contains("forest") || matName.Contains("tree"))
+            {
+                return MapEnvironmentType.ForestNature;
+            }
+        }
+
+        // 2. Fallback to SelectedMapIndex
+        int mapIdx = MapSelectManager.SelectedMapIndex;
+        if (PlayerPrefs.HasKey("SelectedMapIndex"))
+        {
+            mapIdx = PlayerPrefs.GetInt("SelectedMapIndex", mapIdx);
+        }
+
+        switch (mapIdx)
+        {
+            case 0: return MapEnvironmentType.ClassicChess;      // chess / Checkmate
+            case 1: return MapEnvironmentType.ForestNature;       // ground / Open Grounds
+            case 2: return MapEnvironmentType.AbandonedWasteland; // mud / Mudlands
+            case 3: return MapEnvironmentType.NeonSciFi;          // neon / Neon Rush
+            case 4: return MapEnvironmentType.AbandonedWasteland; // overgrown-pavement / Wild Streets
+            default: return MapEnvironmentType.ForestNature;
+        }
+    }
+
+    /// <summary>
+    /// Returns the allowed non-empty prop categories for the specified map environment.
+    /// </summary>
+    private List<GameObject[]> GetAllowedPropCategories(MapEnvironmentType env)
+    {
+        List<GameObject[]> list = new List<GameObject[]>();
+        if (materialsList == null) return list;
+
+        switch (env)
+        {
+            case MapEnvironmentType.ClassicChess:
+                AddCategoryIfValid(list, materialsList.chessEnvironmentProps);
+                AddCategoryIfValid(list, materialsList.treeProps);
+                AddCategoryIfValid(list, materialsList.AnyProp);
+                break;
+
+            case MapEnvironmentType.AbandonedWasteland:
+                AddCategoryIfValid(list, materialsList.carProps);
+                AddCategoryIfValid(list, materialsList.treeProps);
+                AddCategoryIfValid(list, materialsList.AnyProp);
+                break;
+
+            case MapEnvironmentType.NeonSciFi:
+                // ScifiProps only. AnyProp must NEVER appear on the Neon map.
+                AddCategoryIfValid(list, materialsList.ScifiProps);
+                break;
+
+            case MapEnvironmentType.ForestNature:
+                AddCategoryIfValid(list, materialsList.treeProps);
+                AddCategoryIfValid(list, materialsList.AnyProp);
+                break;
+        }
+
+        return list;
+    }
+
+    private static void AddCategoryIfValid(List<GameObject[]> list, GameObject[] array)
+    {
+        if (array == null || array.Length == 0) return;
+
+        // Ensure there is at least one non-null prefab in the array
+        for (int i = 0; i < array.Length; i++)
+        {
+            if (array[i] != null)
+            {
+                list.Add(array);
+                return;
+            }
+        }
+    }
+
+    private static GameObject GetRandomValidPrefab(GameObject[] array)
+    {
+        if (array == null || array.Length == 0) return null;
+
+        int startIndex = Random.Range(0, array.Length);
+        for (int i = 0; i < array.Length; i++)
+        {
+            int index = (startIndex + i) % array.Length;
+            if (array[index] != null)
+            {
+                return array[index];
+            }
+        }
+
+        return null;
+    }
+
+    private struct PlacedPropInfo
+    {
+        public Vector3 worldPosition;
+        public float radius;
+    }
+
+    private readonly Dictionary<Transform, List<PlacedPropInfo>> floorProps = new Dictionary<Transform, List<PlacedPropInfo>>();
+    private readonly Dictionary<GameObject, float> prefabRadiusCache = new Dictionary<GameObject, float>();
+
+    private void OnDestroy()
+    {
+        floorProps.Clear();
+        prefabRadiusCache.Clear();
+    }
+
+    private float GetPrefabRadius(GameObject prefab)
+    {
+        if (prefab == null) return 0.4f;
+
+        if (prefabRadiusCache.TryGetValue(prefab, out float cachedRadius))
+        {
+            return cachedRadius;
+        }
+
+        float maxRadius = 0.35f;
+
+        MeshFilter[] filters = prefab.GetComponentsInChildren<MeshFilter>(true);
+        for (int i = 0; i < filters.Length; i++)
+        {
+            MeshFilter mf = filters[i];
+            if (mf != null && mf.sharedMesh != null)
+            {
+                Bounds b = mf.sharedMesh.bounds;
+                Vector3 scale = mf.transform.lossyScale;
+                float extX = Mathf.Abs(b.extents.x * scale.x);
+                float extY = Mathf.Abs(b.extents.y * scale.y);
+                float extZ = Mathf.Abs(b.extents.z * scale.z);
+                float r = Mathf.Max(extX, Mathf.Max(extY, extZ));
+                if (r > maxRadius) maxRadius = r;
+            }
+        }
+
+        BoxCollider[] boxes = prefab.GetComponentsInChildren<BoxCollider>(true);
+        for (int i = 0; i < boxes.Length; i++)
+        {
+            BoxCollider bc = boxes[i];
+            if (bc != null)
+            {
+                Vector3 size = Vector3.Scale(bc.size, bc.transform.lossyScale) * 0.5f;
+                float r = Mathf.Max(Mathf.Abs(size.x), Mathf.Max(Mathf.Abs(size.y), Mathf.Abs(size.z)));
+                if (r > maxRadius) maxRadius = r;
+            }
+        }
+
+        maxRadius = Mathf.Clamp(maxRadius, 0.35f, 2.5f);
+        prefabRadiusCache[prefab] = maxRadius;
+        return maxRadius;
+    }
+
+    private bool IsOverlappingAnyActiveProp(Vector3 candidateWorldPos, float candidateRadius)
+    {
+        foreach (KeyValuePair<Transform, List<PlacedPropInfo>> kvp in floorProps)
+        {
+            List<PlacedPropInfo> list = kvp.Value;
+            if (list == null) continue;
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                PlacedPropInfo placed = list[i];
+                float dx = candidateWorldPos.x - placed.worldPosition.x;
+                float dz = candidateWorldPos.z - placed.worldPosition.z;
+                float distSqr = dx * dx + dz * dz;
+
+                float requiredDistance = candidateRadius + placed.radius + minimumPropDistance;
+                if (distSqr < requiredDistance * requiredDistance)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private bool IsTooCloseToPlayer(Vector3 candidateWorldPos, float candidateRadius)
+    {
+        if (referenceTransform == null) return false;
+
+        float dx = candidateWorldPos.x - referenceTransform.position.x;
+        float dz = candidateWorldPos.z - referenceTransform.position.z;
+        float distSqr = dx * dx + dz * dz;
+
+        float playerClearance = candidateRadius + 1.2f;
+        return distSqr < playerClearance * playerClearance;
+    }
+
+    private bool IsPositionBlockedByExistingSceneObject(Vector3 candidateWorldPos, float candidateRadius, Transform currentFloor)
+    {
+        float surfaceY = currentFloor.TransformPoint(Vector3.zero).y;
+        Vector3 sphereCenter = new Vector3(candidateWorldPos.x, surfaceY + Mathf.Max(0.4f, candidateRadius * 0.5f), candidateWorldPos.z);
+        float checkRadius = Mathf.Max(0.35f, candidateRadius * 0.85f);
+
+        Collider[] hits = Physics.OverlapSphere(sphereCenter, checkRadius, ~0, QueryTriggerInteraction.Collide);
+        if (hits == null || hits.Length == 0) return false;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider hit = hits[i];
+            if (hit == null) continue;
+
+            if (IsGroundOrFloor(hit)) continue;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsGroundOrFloor(Collider col)
+    {
+        if (col == null) return false;
+
+        if (col.GetComponent<FloorPropMarker>() != null || col.GetComponentInParent<FloorPropMarker>() != null)
+        {
+            return false;
+        }
+
+        if (col.CompareTag("ChessProp") || col.CompareTag("Player") || col.CompareTag("Respawn"))
+        {
+            return false;
+        }
+
+        if (col.GetComponent<Pickup>() != null || col.GetComponentInParent<Pickup>() != null)
+        {
+            return false;
+        }
+
+        string colName = col.name.ToLowerInvariant();
+        if (colName.StartsWith("ground") || colName.StartsWith("floor"))
+        {
+            return true;
+        }
+
+        if (col.CompareTag("Ground"))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Spawns random environment props for the specified floor tile based on the active map's allowed categories.
+    /// </summary>
+    public void SpawnPropsForFloor(Transform floor)
+    {
+        if (floor == null || materialsList == null) return;
+
+        int minP = Mathf.Max(0, minimumProps);
+        int maxP = Mathf.Max(minP, maximumProps);
+        if (maxP == 0) return;
+
+        int propsToSpawn = Random.Range(minP, maxP + 1);
+        if (propsToSpawn <= 0) return;
+
+        MapEnvironmentType env = GetCurrentEnvironmentType();
+        List<GameObject[]> allowedCategories = GetAllowedPropCategories(env);
+
+        if (allowedCategories == null || allowedCategories.Count == 0)
+        {
+            return;
+        }
+
+        float halfSize = floorTileSize * 0.5f;
+        float safeMargin = Mathf.Clamp(edgeMargin, 0.05f, Mathf.Max(0.05f, halfSize * 0.45f));
+
+        if (!floorProps.TryGetValue(floor, out List<PlacedPropInfo> thisFloorProps))
+        {
+            thisFloorProps = new List<PlacedPropInfo>();
+            floorProps[floor] = thisFloorProps;
+        }
+
+        const int maxPlacementAttempts = 35;
+
+        for (int i = 0; i < propsToSpawn; i++)
+        {
+            // 1. Randomly choose from allowed categories for this map
+            GameObject[] chosenCategory = allowedCategories[Random.Range(0, allowedCategories.Count)];
+            GameObject prefab = GetRandomValidPrefab(chosenCategory);
+            if (prefab == null) continue;
+
+            float candidateRadius = GetPrefabRadius(prefab);
+
+            // Keep candidate inside tile boundaries, respecting both edge margin and the prefab's footprint
+            float effectiveMargin = Mathf.Max(safeMargin, candidateRadius * 0.75f);
+            float minBound = -halfSize + effectiveMargin;
+            float maxBound = halfSize - effectiveMargin;
+
+            if (maxBound < minBound)
+            {
+                minBound = 0f;
+                maxBound = 0f;
+            }
+
+            Vector2 validLocalPos = Vector2.zero;
+            bool foundPosition = false;
+
+            for (int attempt = 0; attempt < maxPlacementAttempts; attempt++)
+            {
+                float randX = minBound < maxBound ? Random.Range(minBound, maxBound) : 0f;
+                float randZ = minBound < maxBound ? Random.Range(minBound, maxBound) : 0f;
+                Vector2 candidateLocal = new Vector2(randX, randZ);
+
+                // Convert to world position
+                Vector3 candidateWorld = floor.TransformPoint(new Vector3(candidateLocal.x, 0f, candidateLocal.y));
+
+                // A. Check against all currently active props across ALL floor tiles (same tile and neighboring tiles)
+                if (IsOverlappingAnyActiveProp(candidateWorld, candidateRadius))
+                {
+                    continue;
+                }
+
+                // B. Check against player reference
+                if (IsTooCloseToPlayer(candidateWorld, candidateRadius))
+                {
+                    continue;
+                }
+
+                // C. Check physics scene for existing colliders (Pickups, player body segments, obstacles, etc.)
+                if (IsPositionBlockedByExistingSceneObject(candidateWorld, candidateRadius, floor))
+                {
+                    continue;
+                }
+
+                validLocalPos = candidateLocal;
+                foundPosition = true;
+                break;
+            }
+
+            if (!foundPosition)
+            {
+                // Do not force spawn an object if no non-overlapping position was found!
+                continue;
+            }
+
+            // 3. Instantiate prop parented directly to the floor
+            GameObject propInstance = Instantiate(prefab, floor);
+            propInstance.transform.localScale = prefab.transform.localScale;
+            propInstance.transform.localPosition = new Vector3(validLocalPos.x, 0f, validLocalPos.y);
+
+            // Maintain the prefab's intrinsic orientation, ensuring chess pieces stand upright (-90 X)
+            Quaternion baseRotation = prefab.transform.localRotation;
+            if (IsChessPiece(prefab, propInstance))
+            {
+                // Chess pieces from 3ds Max / Z-up raw meshes require -90 deg rotation around X to stand upright
+                if (Mathf.Abs(Quaternion.Angle(baseRotation, Quaternion.identity)) < 1f ||
+                    (Mathf.Abs(baseRotation.eulerAngles.x) < 1f && Mathf.Abs(baseRotation.eulerAngles.z) < 1f))
+                {
+                    baseRotation = Quaternion.Euler(-90f, 0f, 0f);
+                }
+            }
+
+            // Spin randomly around the floor's vertical Y axis while preserving the base orientation
+            Quaternion randomY = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+            propInstance.transform.localRotation = randomY * baseRotation;
+
+            // Align prop vertical position so its lowest bounding point sits directly on the floor surface
+            AlignPropToFloorSurface(propInstance, floor);
+
+            propInstance.AddComponent<FloorPropMarker>();
+
+            // Immediately sync physics transforms so subsequent overlap checks in the same frame see this new collider
+            Physics.SyncTransforms();
+
+            // Record this prop in our active tracking list
+            thisFloorProps.Add(new PlacedPropInfo
+            {
+                worldPosition = propInstance.transform.position,
+                radius = candidateRadius
+            });
+        }
+    }
+
+    /// <summary>
+    /// Checks if a prefab or instance represents a chess piece that requires upright orientation.
+    /// </summary>
+    private static bool IsChessPiece(GameObject prefab, GameObject instance)
+    {
+        if (instance != null && instance.CompareTag("ChessProp")) return true;
+        if (prefab != null && prefab.CompareTag("ChessProp")) return true;
+
+        if (instance != null && instance.GetComponent<ChessPiece>() != null) return true;
+        if (prefab != null && prefab.GetComponent<ChessPiece>() != null) return true;
+
+        string name = (instance != null ? instance.name : (prefab != null ? prefab.name : "")).ToLowerInvariant();
+        if (name.Contains("chess") || name.Contains("rook") || name.Contains("bishop") ||
+            name.Contains("king") || name.Contains("queen") || name.Contains("knight") || name.Contains("pawn"))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Aligns the vertical position of a spawned prop so that its lowest bounding point (from Renderers or Colliders)
+    /// rests flush on top of the floor tile surface rather than embedding halfway in the ground.
+    /// </summary>
+    private void AlignPropToFloorSurface(GameObject propInstance, Transform floor)
+    {
+        if (propInstance == null || floor == null) return;
+
+        float targetSurfaceWorldY = floor.TransformPoint(Vector3.zero).y + propVerticalOffset;
+        float lowestWorldY = float.MaxValue;
+        bool foundBound = false;
+
+        Renderer[] renderers = propInstance.GetComponentsInChildren<Renderer>();
+        for (int r = 0; r < renderers.Length; r++)
+        {
+            Renderer rend = renderers[r];
+            if (rend == null || !rend.gameObject.activeInHierarchy || !rend.enabled || rend is ParticleSystemRenderer) continue;
+
+            lowestWorldY = Mathf.Min(lowestWorldY, rend.bounds.min.y);
+            foundBound = true;
+        }
+
+        if (!foundBound)
+        {
+            Collider[] colliders = propInstance.GetComponentsInChildren<Collider>();
+            for (int c = 0; c < colliders.Length; c++)
+            {
+                Collider col = colliders[c];
+                if (col == null || !col.gameObject.activeInHierarchy || !col.enabled || col.isTrigger) continue;
+
+                lowestWorldY = Mathf.Min(lowestWorldY, col.bounds.min.y);
+                foundBound = true;
+            }
+        }
+
+        if (foundBound && lowestWorldY < float.MaxValue)
+        {
+            float yOffset = targetSurfaceWorldY - lowestWorldY;
+            propInstance.transform.position += new Vector3(0f, yOffset, 0f);
+        }
+    }
+
+    /// <summary>
+    /// Clears any previously spawned props from a floor tile before reusing or destroying it.
+    /// Preserves ground/floor mesh children.
+    /// </summary>
+    public void ClearProps(Transform floor)
+    {
+        if (floor == null) return;
+
+        floorProps.Remove(floor);
+
+        for (int i = floor.childCount - 1; i >= 0; i--)
+        {
+            Transform child = floor.GetChild(i);
+            if (child != null && (child.GetComponent<FloorPropMarker>() != null || !child.name.StartsWith("ground")))
+            {
+                child.gameObject.SetActive(false);
+                child.SetParent(null);
+                Destroy(child.gameObject);
+            }
+        }
     }
 
     private void OnDrawGizmosSelected()
