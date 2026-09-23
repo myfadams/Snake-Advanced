@@ -332,6 +332,11 @@ public class GameStakes : MonoBehaviour
                 activeWarningUIInstance.SetActive(false);
             }
         }
+
+        if (initialCubes >= maxSnakeLength)
+        {
+            EnterWarning();
+        }
     }
 
     private void Update()
@@ -354,7 +359,29 @@ public class GameStakes : MonoBehaviour
         // State machine update
         if (currentState == StakeState.Warning)
         {
-            UpdateWarningState();
+            if (snakeGrow != null && snakeGrow.TotalCubeCount < maxSnakeLength)
+            {
+                EnterNormal(animated: true);
+            }
+            else
+            {
+                // Guarantee warning UI is active and visible every frame while in Warning state
+                if (activeWarningUIInstance == null || !activeWarningUIInstance.activeSelf || (warningUIAnimationCoroutine == null && activeWarningUIInstance.transform.localScale.sqrMagnitude < 0.5f))
+                {
+                    EnsureWarningUIInstance();
+                    UpdateWarningMessageText(GetWarningMessageForCubes(snakeGrow != null ? snakeGrow.TotalCubeCount : monitoredCubes));
+                    AnimateWarningUI(true);
+                }
+
+                UpdateWarningState();
+            }
+        }
+        else if (currentState == StakeState.Normal)
+        {
+            if (snakeGrow != null && snakeGrow.TotalCubeCount >= maxSnakeLength)
+            {
+                EnterWarning();
+            }
         }
     }
 
@@ -362,6 +389,13 @@ public class GameStakes : MonoBehaviour
 
     private void UpdateWarningState()
     {
+        // If length has shrunk to less than 10 (e.g. 9), immediately return to Normal
+        if (snakeGrow != null && snakeGrow.TotalCubeCount < maxSnakeLength)
+        {
+            EnterNormal(animated: true);
+            return;
+        }
+
         // Decrement timer
         currentCountdownTimer -= Time.deltaTime;
 
@@ -483,13 +517,13 @@ public class GameStakes : MonoBehaviour
     private void OnShedCompleted()
     {
         int current = snakeGrow != null ? snakeGrow.TotalCubeCount : monitoredCubes;
-        if (current <= targetSnakeLength)
+        if (current < maxSnakeLength)
         {
             EnterNormal(animated: true);
         }
         else
         {
-            // Still above target: re-enter warning
+            // Still 10 or more: re-enter warning
             currentState = StakeState.Normal;
             EnterWarning();
         }
@@ -580,38 +614,41 @@ public class GameStakes : MonoBehaviour
 
     private void EnsureWarningUIInstance()
     {
+        if (activeWarningUIInstance == null)
+        {
+            if (warningUI == null)
+            {
+                GameObject existingWarnings = GameObject.Find("warnings");
+                if (existingWarnings != null) warningUI = existingWarnings;
+            }
+
+            if (warningUI == null) return;
+
+            if (warningUI.scene.IsValid())
+            {
+                activeWarningUIInstance = warningUI;
+            }
+            else
+            {
+                Transform parent = GetTargetUIParent();
+                activeWarningUIInstance = Instantiate(warningUI, parent, false);
+            }
+        }
+
         if (activeWarningUIInstance != null)
         {
-            if (warningMessageText == null)
+            // Disable all Animators on the warning UI instance so they cannot conflict with code animations, force alpha to 0, or shift positions
+            Animator[] anims = activeWarningUIInstance.GetComponentsInChildren<Animator>(true);
+            for (int i = 0; i < anims.Length; i++)
             {
-                warningMessageText = FindTMPInHierarchy(activeWarningUIInstance);
+                if (anims[i] != null && anims[i].enabled)
+                {
+                    anims[i].enabled = false;
+                }
             }
-            return;
-        }
 
-        if (warningUI == null)
-        {
-            GameObject existingWarnings = GameObject.Find("warnings");
-            if (existingWarnings != null) warningUI = existingWarnings;
-        }
-
-        if (warningUI == null) return;
-
-        if (warningUI.scene.IsValid())
-        {
-            activeWarningUIInstance = warningUI;
-        }
-        else
-        {
-            Transform parent = GetTargetUIParent();
-            activeWarningUIInstance = Instantiate(warningUI, parent, false);
-        }
-
-        // Automatically resolve and cache the child TMP from the warning UI instance or prefab
-        warningMessageText = FindTMPInHierarchy(activeWarningUIInstance);
-        if (warningMessageText == null && warningUI != null)
-        {
-            warningMessageText = FindTMPInHierarchy(warningUI);
+            // Always resolve TMP text directly from the scene instance
+            warningMessageText = FindTMPInHierarchy(activeWarningUIInstance);
         }
     }
 
@@ -619,6 +656,11 @@ public class GameStakes : MonoBehaviour
     {
         EnsureWarningUIInstance();
         if (activeWarningUIInstance == null) return;
+
+        if (show)
+        {
+            activeWarningUIInstance.transform.SetAsLastSibling();
+        }
 
         if (warningUIAnimationCoroutine != null)
         {
@@ -633,13 +675,53 @@ public class GameStakes : MonoBehaviour
 
         activeWarningUIInstance.SetActive(true);
 
+        if (show)
+        {
+            activeWarningUIInstance.transform.SetAsLastSibling();
+        }
+
+        // Ensure Animators remain disabled
+        Animator[] anims = activeWarningUIInstance.GetComponentsInChildren<Animator>(true);
+        for (int i = 0; i < anims.Length; i++)
+        {
+            if (anims[i] != null && anims[i].enabled)
+            {
+                anims[i].enabled = false;
+            }
+        }
+
+        // Ensure CanvasGroup is present and enabled
+        CanvasGroup cg = activeWarningUIInstance.GetComponent<CanvasGroup>();
+        if (cg == null)
+        {
+            cg = activeWarningUIInstance.AddComponent<CanvasGroup>();
+        }
+        cg.enabled = true;
+
+        // Ensure RectTransform anchored position is centered at (0, 75)
+        RectTransform rt = activeWarningUIInstance.GetComponent<RectTransform>();
+        if (rt != null)
+        {
+            rt.anchoredPosition = new Vector2(0f, 75f);
+            rt.localPosition = new Vector3(rt.localPosition.x, rt.localPosition.y, 0f);
+        }
+
         float elapsed = 0f;
         float duration = Mathf.Max(0.05f, warningAnimationDuration);
 
-        Vector3 startScale = show ? Vector3.zero : activeWarningUIInstance.transform.localScale;
+        // Smoothly interpolate from current scale and opacity rather than snapping
+        Vector3 startScale = activeWarningUIInstance.transform.localScale;
+        if (show && startScale.sqrMagnitude < 0.001f)
+        {
+            startScale = Vector3.zero;
+        }
         Vector3 targetScale = show ? Vector3.one : Vector3.zero;
 
-        float startAlpha = show ? 0f : GetOpacity(activeWarningUIInstance);
+        float startAlpha = GetOpacity(activeWarningUIInstance);
+        if (show && startAlpha < 0.01f)
+        {
+            startAlpha = 0f;
+        }
         float targetAlpha = show ? 1f : 0f;
 
         while (elapsed < duration)
@@ -667,7 +749,14 @@ public class GameStakes : MonoBehaviour
 
     private void UpdateWarningMessageText(string message)
     {
-        if (warningMessageText == null)
+        if (activeWarningUIInstance != null)
+        {
+            if (warningMessageText == null || !warningMessageText.transform.IsChildOf(activeWarningUIInstance.transform))
+            {
+                warningMessageText = FindTMPInHierarchy(activeWarningUIInstance);
+            }
+        }
+        else if (warningMessageText == null)
         {
             warningMessageText = ResolveWarningTMP();
         }
@@ -739,7 +828,7 @@ public class GameStakes : MonoBehaviour
             return tooLongMessage;
         }
 
-        return string.Format(limitReachedMessage, targetSnakeLength);
+        return string.Format(limitReachedMessage, maxSnakeLength - 1);
     }
 
     private void SetShedButtonActive(bool active)
@@ -1175,7 +1264,7 @@ public class GameStakes : MonoBehaviour
         }
         else if (currentState == StakeState.Warning)
         {
-            if (newCubeCount <= targetSnakeLength)
+            if (newCubeCount < maxSnakeLength)
             {
                 // Successful shrink!
                 EnterNormal(animated: true);
@@ -1205,6 +1294,12 @@ public class GameStakes : MonoBehaviour
 
                 // Update warning text dynamically
                 UpdateWarningMessageText(GetWarningMessageForCubes(newCubeCount));
+
+                // If snake grew larger while in Warning state or UI was not visible, re-trigger warning animation
+                if (newCubeCount > previousCubes || activeWarningUIInstance == null || !activeWarningUIInstance.activeSelf || activeWarningUIInstance.transform.localScale.sqrMagnitude < 0.5f)
+                {
+                    AnimateWarningUI(true);
+                }
 
                 // Re-evaluate Shed button
                 bool canShed = (snakeGrow != null && snakeGrow.HeadValue >= 8);

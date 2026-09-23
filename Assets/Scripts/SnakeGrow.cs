@@ -214,6 +214,16 @@ public class SnakeGrow : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        // Continuously check if blocks next to each other in the snake body are the same value,
+        // or if there are pending pickups to process, and merge them automatically.
+        if (!isProcessing && gameObject.activeInHierarchy && (pendingPickups.Count > 0 || FindMergeablePairIndex() != -1))
+        {
+            StartCoroutine(ProcessGrowthAndMergesCoroutine());
+        }
+    }
+
     private void OnDisable()
     {
         StopAllCoroutines();
@@ -290,23 +300,26 @@ public class SnakeGrow : MonoBehaviour
     }
 
     /// <summary>
-    /// Processes all queued pickups, smoothly animating each block's insertion growth,
-    /// followed by any resulting cascading merges until the snake reaches a stable state.
+    /// Processes queued pickups and checks the snake body to sequentially resolve
+    /// all adjacent identical-block merges until the snake reaches a stable state.
     /// </summary>
     private IEnumerator ProcessGrowthAndMergesCoroutine()
     {
         isProcessing = true;
 
-        while (pendingPickups.Count > 0)
+        while (pendingPickups.Count > 0 || FindMergeablePairIndex() != -1)
         {
-            int pickupValue = pendingPickups.Dequeue();
-            Transform newSegment = InsertSegmentAfterHead(pickupValue);
-            SyncMovement();
-
-            // Smoothly animate the newly inserted block's growth and path integration
-            if (newSegment != null)
+            if (pendingPickups.Count > 0)
             {
-                yield return StartCoroutine(AnimateGrowth(newSegment));
+                int pickupValue = pendingPickups.Dequeue();
+                Transform newSegment = InsertSegmentAfterHead(pickupValue);
+                SyncMovement();
+
+                // Smoothly animate the newly inserted block's growth and path integration
+                if (newSegment != null)
+                {
+                    yield return StartCoroutine(AnimateGrowth(newSegment));
+                }
             }
 
             // Sequentially resolve all cascading chain merges with smooth visual animations
@@ -598,13 +611,14 @@ public class SnakeGrow : MonoBehaviour
         float waitDuration = Mathf.Max(damageEjectDuration, headDamagePunchDuration);
         yield return new WaitForSeconds(waitDuration);
 
-        isProcessing = false;
-
-        // Check if any merges are available now that length is reduced
-        if (FindMergeablePairIndex() != -1 && gameObject.activeInHierarchy)
+        // Check the snake body for any blocks next to each other that are the same value and merge them
+        while (FindMergeablePairIndex() != -1)
         {
-            StartCoroutine(ProcessGrowthAndMergesCoroutine());
+            int pairIndex = FindMergeablePairIndex();
+            yield return StartCoroutine(AnimateMergePair(pairIndex));
         }
+
+        isProcessing = false;
 
         onComplete?.Invoke();
     }
@@ -757,6 +771,14 @@ public class SnakeGrow : MonoBehaviour
     /// </summary>
     private int FindMergeablePairIndex()
     {
+        for (int i = segments.Count - 1; i >= 0; i--)
+        {
+            if (segments[i] == null)
+            {
+                segments.RemoveAt(i);
+            }
+        }
+
         for (int i = 0; i < segments.Count - 1; i++)
         {
             if (segments[i] == null || segments[i + 1] == null)
