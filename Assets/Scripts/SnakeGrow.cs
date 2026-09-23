@@ -90,6 +90,25 @@ public class SnakeGrow : MonoBehaviour
     [Range(1.05f, 1.5f)]
     [SerializeField] private float headDamageScaleMultiplier = 1.25f;
 
+    [Header("Shed Animation & Audio")]
+    [Tooltip("Sound played when shedding blocks. The shedding animation duration will automatically match the length of this audio clip.")]
+    [SerializeField] private AudioClip shedSoundClip;
+
+    [Tooltip("Playback volume for the shed sound.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float shedSoundVolume = 1f;
+
+    [Tooltip("Fallback duration in seconds for the shed animation if no shed audio clip is assigned.")]
+    [Range(0.2f, 3.0f)]
+    [SerializeField] private float fallbackShedDuration = 0.8f;
+
+    [Tooltip("Distance the shed blocks reverse backward away from the snake before shrinking and being destroyed.")]
+    [Range(0.5f, 6.0f)]
+    [SerializeField] private float shedReverseDistance = 2.5f;
+
+    [Tooltip("Easing curve used when reversing the shed blocks backward out of the snake.")]
+    [SerializeField] private AnimationCurve shedReverseCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+
     [Header("Audio Settings")]
     [Tooltip("Sound played when collecting / eating a pickup. Assign your eat sound clip here in the Inspector.")]
     [SerializeField] private AudioClip eatSoundClip;
@@ -115,6 +134,11 @@ public class SnakeGrow : MonoBehaviour
     public float EatSoundVolume { get => eatSoundVolume; set => eatSoundVolume = value; }
     public AudioClip MergeSoundClip { get => mergeSoundClip; set => mergeSoundClip = value; }
     public float MergeSoundVolume { get => mergeSoundVolume; set => mergeSoundVolume = value; }
+    public AudioClip ShedSoundClip { get => shedSoundClip; set => shedSoundClip = value; }
+    public float ShedSoundVolume { get => shedSoundVolume; set => shedSoundVolume = value; }
+    public float FallbackShedDuration { get => fallbackShedDuration; set => fallbackShedDuration = value; }
+    public float ShedReverseDistance { get => shedReverseDistance; set => shedReverseDistance = value; }
+    public AnimationCurve ShedReverseCurve { get => shedReverseCurve; set => shedReverseCurve = value; }
     public AudioSource SnakeAudioSource { get => audioSource; set => audioSource = value; }
 
     /// <summary>
@@ -537,11 +561,11 @@ public class SnakeGrow : MonoBehaviour
 
     /// <summary>
     /// Reduces the snake body to targetSegmentCount blocks (e.g. 8 blocks) as part of the emergency Shed mechanic.
-    /// Excess blocks detach from the tail with a smooth visible animation (drifting backward/outward, tumbling,
-    /// shrinking, and being destroyed), while the Head's value is reduced according to the consecutive Shed cost formula:
-    /// Shed Cost = Head Power / 2^n (where n is the current shed number).
+    /// Excess blocks smoothly reverse backwards out of the snake over the duration of the shed audio clip,
+    /// shrinking and being destroyed as the audio finishes, while the Head's value is reduced according to the
+    /// consecutive Shed cost formula: Shed Cost = Head Power / 2^n.
     /// </summary>
-    public void PerformShed(int targetSegmentCount, int shedLevel = 1, System.Action onComplete = null)
+    public void PerformShed(int targetSegmentCount, int shedLevel = 1, System.Action onComplete = null, AudioClip overrideAudioClip = null)
     {
         EnsureInitialized();
 
@@ -550,15 +574,15 @@ public class SnakeGrow : MonoBehaviour
             DetectSegments();
         }
 
-        StartCoroutine(ShedCoroutine(targetSegmentCount, shedLevel, onComplete));
+        StartCoroutine(ShedCoroutine(targetSegmentCount, shedLevel, onComplete, overrideAudioClip));
     }
 
     public void PerformShed(int targetSegmentCount, System.Action onComplete)
     {
-        PerformShed(targetSegmentCount, 1, onComplete);
+        PerformShed(targetSegmentCount, 1, onComplete, null);
     }
 
-    private IEnumerator ShedCoroutine(int targetSegmentCount, int shedLevel, System.Action onComplete)
+    private IEnumerator ShedCoroutine(int targetSegmentCount, int shedLevel, System.Action onComplete, AudioClip overrideAudioClip = null)
     {
         isProcessing = true;
 
@@ -585,6 +609,14 @@ public class SnakeGrow : MonoBehaviour
             NotifyCubesChanged();
         }
 
+        // Determine audio clip and duration (duration matches audio clip length)
+        AudioClip clipToPlay = overrideAudioClip != null ? overrideAudioClip : shedSoundClip;
+        float shedDuration = (clipToPlay != null && clipToPlay.length > 0f) ? clipToPlay.length : fallbackShedDuration;
+        shedDuration = Mathf.Max(0.1f, shedDuration);
+
+        // Play the shed audio immediately
+        PlayShedSound(clipToPlay);
+
         // Calculate reduced head value using Shed Cost = Head Power / 2^n formula
         body headBody = head != null ? head.GetComponent<body>() : null;
         int currentHeadVal = headBody != null ? headBody.Value : 2;
@@ -604,7 +636,7 @@ public class SnakeGrow : MonoBehaviour
             StartCoroutine(AnimateHeadDamage(headBody, newHeadVal));
         }
 
-        // Animate all removed blocks detaching and flying away smoothly
+        // Animate all removed blocks reversing backwards out of the snake before being destroyed
         for (int i = 0; i < blocksToEject.Count; i++)
         {
             Transform ejectedBlock = blocksToEject[i];
@@ -615,14 +647,27 @@ public class SnakeGrow : MonoBehaviour
                 if (col != null) col.enabled = false;
 
                 ejectedBlock.SetParent(null);
-                // Stagger or angle each block slightly so they disperse outward and backward
-                float angleOffset = (i - (blocksToEject.Count - 1) * 0.5f) * 30f;
-                StartCoroutine(AnimateShedSegmentEjection(ejectedBlock, angleOffset));
+
+                // blocksToEject[0] is the tail block (furthest back).
+                // Stagger reverse distance so blocks reverse in clean formation without colliding
+                float extraReverse = (blocksToEject.Count - 1 - i) * 0.4f;
+                float totalDist = shedReverseDistance + extraReverse;
+
+                Vector3 reverseDir = -ejectedBlock.forward;
+                reverseDir.y = 0f;
+                if (reverseDir.sqrMagnitude < 0.001f)
+                {
+                    reverseDir = head != null ? -head.forward : -Vector3.forward;
+                    reverseDir.y = 0f;
+                }
+                reverseDir.Normalize();
+
+                StartCoroutine(AnimateShedReverseOut(ejectedBlock, reverseDir, totalDist, shedDuration));
             }
         }
 
-        // Wait for ejections and head animation to finish
-        float waitDuration = Mathf.Max(damageEjectDuration, headDamagePunchDuration);
+        // Wait for the full shed animation and audio duration to finish
+        float waitDuration = Mathf.Max(shedDuration, headDamagePunchDuration);
         yield return new WaitForSeconds(waitDuration);
 
         // Check the snake body for any blocks next to each other that are the same value and merge them
@@ -638,9 +683,10 @@ public class SnakeGrow : MonoBehaviour
     }
 
     /// <summary>
-    /// Smoothly animates a shed body block flying backward/sideways, tumbling, and shrinking to zero before being destroyed.
+    /// Smoothly animates a shed body block reversing backwards out of the snake before shrinking and being destroyed.
+    /// The animation duration is synchronized with the assigned shed audio clip duration.
     /// </summary>
-    private IEnumerator AnimateShedSegmentEjection(Transform ejectedTransform, float angleOffset)
+    private IEnumerator AnimateShedReverseOut(Transform ejectedTransform, Vector3 reverseDir, float reverseDist, float duration)
     {
         if (ejectedTransform == null)
             yield break;
@@ -649,34 +695,35 @@ public class SnakeGrow : MonoBehaviour
         Vector3 startScale = ejectedTransform.localScale;
         Quaternion startRot = ejectedTransform.rotation;
 
-        Vector3 forward = head != null ? head.forward : Vector3.forward;
-        Vector3 right = head != null ? head.right : Vector3.right;
-
-        // Fly backward and outward away from the snake
-        Quaternion rotOffset = Quaternion.AngleAxis(angleOffset, Vector3.up);
-        Vector3 flyDir = rotOffset * (-forward * 0.8f + right * (angleOffset >= 0 ? 0.6f : -0.6f) + Vector3.up * 0.7f).normalized;
-
-        Vector3 targetPos = startPos + flyDir * (damageEjectDistance * 1.5f);
-        Vector3 randomTorque = new Vector3(
-            Random.Range(-180f, 180f),
-            Random.Range(-180f, 180f),
-            Random.Range(-180f, 180f)
-        );
+        Vector3 targetPos = startPos + reverseDir * reverseDist;
+        targetPos.y = startPos.y; // Keep grounded on the snake's plane
 
         float elapsed = 0f;
-        while (elapsed < damageEjectDuration)
+        while (elapsed < duration)
         {
             yield return null;
             if (ejectedTransform == null)
                 yield break;
 
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / damageEjectDuration);
-            float ease = Mathf.SmoothStep(0f, 1f, t);
+            float t = Mathf.Clamp01(elapsed / duration);
+            float posEase = shedReverseCurve != null ? shedReverseCurve.Evaluate(t) : Mathf.SmoothStep(0f, 1f, t);
 
-            ejectedTransform.position = Vector3.Lerp(startPos, targetPos, ease);
-            ejectedTransform.rotation = startRot * Quaternion.Euler(randomTorque * ease);
-            ejectedTransform.localScale = Vector3.Lerp(startScale, Vector3.zero, ease);
+            ejectedTransform.position = Vector3.Lerp(startPos, targetPos, posEase);
+            ejectedTransform.rotation = startRot;
+
+            // Retain full scale during the reverse-out slide (first ~70% of duration),
+            // then smoothly shrink down to zero in the final ~30% before destruction
+            if (t <= 0.7f)
+            {
+                ejectedTransform.localScale = startScale;
+            }
+            else
+            {
+                float shrinkT = Mathf.Clamp01((t - 0.7f) / 0.3f);
+                float shrinkEase = Mathf.SmoothStep(0f, 1f, shrinkT);
+                ejectedTransform.localScale = Vector3.Lerp(startScale, Vector3.zero, shrinkEase);
+            }
         }
 
         if (ejectedTransform != null)
@@ -1141,6 +1188,34 @@ public class SnakeGrow : MonoBehaviour
         else
         {
             AudioSource.PlayClipAtPoint(mergeSoundClip, transform.position, mergeSoundVolume);
+        }
+    }
+
+    /// <summary>
+    /// Plays the shed sound effect when emergency shed is activated.
+    /// </summary>
+    public void PlayShedSound(AudioClip overrideClip = null, float volumeMultiplier = 1f)
+    {
+        AudioClip clipToPlay = overrideClip != null ? overrideClip : shedSoundClip;
+        if (clipToPlay == null) return;
+
+        EnsureAudioSource();
+
+        float finalVolume = shedSoundVolume * Mathf.Clamp01(volumeMultiplier);
+        if (audioSource != null)
+        {
+            float originalPitch = audioSource.pitch;
+            if (randomizePitch)
+            {
+                audioSource.pitch = UnityEngine.Random.Range(0.97f, 1.03f);
+            }
+
+            audioSource.PlayOneShot(clipToPlay, finalVolume);
+            audioSource.pitch = originalPitch;
+        }
+        else
+        {
+            AudioSource.PlayClipAtPoint(clipToPlay, transform.position, finalVolume);
         }
     }
 }

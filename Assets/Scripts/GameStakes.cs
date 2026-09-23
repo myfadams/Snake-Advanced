@@ -73,6 +73,12 @@ public class GameStakes : MonoBehaviour
     [Tooltip("Total number of times Shed has been successfully used during this run.")]
     [SerializeField] private int shedCount = 0;
 
+    [Header("Shed Audio (Optional Override)")]
+    [Tooltip("Optional sound clip played when Shed is triggered. If assigned here, it will be passed to SnakeGrow.")]
+    [SerializeField] private AudioClip shedSoundClip;
+
+    public AudioClip ShedSoundClip { get => shedSoundClip; set => shedSoundClip = value; }
+
     private Coroutine postShedMessageCoroutine;
 
     [Header("Game Over UI")]
@@ -616,7 +622,7 @@ public class GameStakes : MonoBehaviour
         currentState = StakeState.Shedding;
         SetShedButtonActive(false);
 
-        snakeGrow.PerformShed(targetSnakeLength, shedCount, OnShedCompleted);
+        snakeGrow.PerformShed(targetSnakeLength, shedCount, OnShedCompleted, shedSoundClip);
     }
 
     private void OnShedCompleted()

@@ -2522,6 +2522,34 @@ MonoBehaviour:
     m_RotationOrder: 4
   headDamagePunchDuration: 0.16
   headDamageScaleMultiplier: 1.25
+  shedSoundClip: {fileID: 8300000, guid: 1b2e26b145d0a6d49b17a6edbcc926f6, type: 3}
+  shedSoundVolume: 1
+  fallbackShedDuration: 0.8
+  shedReverseDistance: 2.5
+  shedReverseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   eatSoundClip: {fileID: 8300000, guid: 3b8d6c7928cc24649aa2ad8e2d619c35, type: 3}
   eatSoundVolume: 1
   mergeSoundClip: {fileID: 8300000, guid: eb35d96dcfb8e674ca8f855427509a47, type: 3}
@@ -3613,6 +3641,8 @@ MonoBehaviour:
   warningMessageText: {fileID: 7190335371266065503, guid: 8fe67c6965f862946a86465a721b786a, type: 3}
   warningUI: {fileID: 4337536832225034331, guid: 8fe67c6965f862946a86465a721b786a, type: 3}
   shedButton: {fileID: 1619860033}
+  shedCount: 0
+  shedSoundClip: {fileID: 0}
   gameOverPopup: {fileID: 2671484250688487167, guid: f4531648e8bf8cd4f967b0ba590bb2c4, type: 3}
   gameOverBackground: {fileID: 559958126}
   gameOverBackgroundOpacity: 0.8
