@@ -538,9 +538,10 @@ public class SnakeGrow : MonoBehaviour
     /// <summary>
     /// Reduces the snake body to targetSegmentCount blocks (e.g. 8 blocks) as part of the emergency Shed mechanic.
     /// Excess blocks detach from the tail with a smooth visible animation (drifting backward/outward, tumbling,
-    /// shrinking, and being destroyed), while the Head's value is smoothly halved.
+    /// shrinking, and being destroyed), while the Head's value is reduced according to the consecutive Shed cost formula:
+    /// Shed Cost = Head Power / 2^n (where n is the current shed number).
     /// </summary>
-    public void PerformShed(int targetSegmentCount, System.Action onComplete = null)
+    public void PerformShed(int targetSegmentCount, int shedLevel = 1, System.Action onComplete = null)
     {
         EnsureInitialized();
 
@@ -549,10 +550,15 @@ public class SnakeGrow : MonoBehaviour
             DetectSegments();
         }
 
-        StartCoroutine(ShedCoroutine(targetSegmentCount, onComplete));
+        StartCoroutine(ShedCoroutine(targetSegmentCount, shedLevel, onComplete));
     }
 
-    private IEnumerator ShedCoroutine(int targetSegmentCount, System.Action onComplete)
+    public void PerformShed(int targetSegmentCount, System.Action onComplete)
+    {
+        PerformShed(targetSegmentCount, 1, onComplete);
+    }
+
+    private IEnumerator ShedCoroutine(int targetSegmentCount, int shedLevel, System.Action onComplete)
     {
         isProcessing = true;
 
@@ -579,10 +585,18 @@ public class SnakeGrow : MonoBehaviour
             NotifyCubesChanged();
         }
 
-        // Halve head value
+        // Calculate reduced head value using Shed Cost = Head Power / 2^n formula
         body headBody = head != null ? head.GetComponent<body>() : null;
         int currentHeadVal = headBody != null ? headBody.Value : 2;
-        int newHeadVal = Mathf.Max(2, currentHeadVal / 2);
+        int multiplier = 1 << Mathf.Clamp(shedLevel, 1, 30); // 2^n: 2, 4, 8, 16...
+        int newHeadVal = currentHeadVal / multiplier;
+
+        if (newHeadVal <= 1)
+        {
+            Debug.Log($"[SnakeGrow] Shed reduced head to {newHeadVal} (<= 1) -> Game Over triggered!");
+            TriggerDeathOrGameOver();
+            newHeadVal = 2; // Keep visual representation safe while Game Over sequence occurs
+        }
 
         // Animate Head value reduction pop
         if (headBody != null && head != null)

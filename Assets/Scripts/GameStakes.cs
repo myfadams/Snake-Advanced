@@ -69,6 +69,12 @@ public class GameStakes : MonoBehaviour
     [Tooltip("The Shed Button GameObject or Button.")]
     [SerializeField] private GameObject shedButton;
 
+    [Header("Consecutive Shed Mechanics")]
+    [Tooltip("Total number of times Shed has been successfully used during this run.")]
+    [SerializeField] private int shedCount = 0;
+
+    private Coroutine postShedMessageCoroutine;
+
     [Header("Game Over UI")]
     [Tooltip("The Game Over popup GameObject or Prefab (e.g. GameOver.prefab).")]
     [SerializeField] private GameObject gameOverPopup;
@@ -245,6 +251,77 @@ public class GameStakes : MonoBehaviour
         }
     }
 
+    /// <summary>Number of times Shed has been successfully used in the current run.</summary>
+    public int ShedCount => shedCount;
+
+    /// <summary>
+    /// Resets the consecutive shed counter back to 0.
+    /// </summary>
+    public void ResetShedCount()
+    {
+        shedCount = 0;
+    }
+
+    /// <summary>
+    /// Returns the penalty divisor (2^n) for the upcoming Shed level.
+    /// </summary>
+    public int GetNextShedPenalty()
+    {
+        return 1 << Mathf.Clamp(shedCount + 1, 1, 30);
+    }
+
+    /// <summary>
+    /// Evaluates whether the player is currently able to Shed.
+    /// At Head Power 2, the player can no longer Shed.
+    /// If shedding requires dividing by 2^n (e.g. 2^3 = 8) and head is less than 2^n (e.g. 4),
+    /// or if shedding would reduce the head to 1 or less, shedding is disabled because it would cause Game Over.
+    /// </summary>
+    public bool CanPlayerShed()
+    {
+        if (snakeGrow == null)
+        {
+            LocateSnakeGrow();
+        }
+
+        if (snakeGrow == null) return false;
+
+        int headVal = snakeGrow.HeadValue;
+        int penalty = GetNextShedPenalty();
+
+        if (headVal <= 2) return false;
+        if (headVal < penalty || headVal / penalty <= 1) return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns an explanatory reason string if the player is currently unable to Shed.
+    /// </summary>
+    public string GetCannotShedReason()
+    {
+        if (snakeGrow == null)
+        {
+            LocateSnakeGrow();
+        }
+
+        if (snakeGrow == null) return "";
+
+        int headVal = snakeGrow.HeadValue;
+        int penalty = GetNextShedPenalty();
+
+        if (headVal <= 2)
+        {
+            return "Cannot Shed: Head power is 2 (minimum).";
+        }
+
+        if (headVal < penalty || headVal / penalty <= 1)
+        {
+            return $"Cannot Shed: Shed power is {penalty}\u00D7 and Head is {headVal}!";
+        }
+
+        return "";
+    }
+
     #endregion
 
     private void OnValidate()
@@ -295,11 +372,20 @@ public class GameStakes : MonoBehaviour
     private void OnEnable()
     {
         SnakeGrow.OnSnakeCubesChanged += HandleSnakeCubesChanged;
+        if (snakeGrow != null)
+        {
+            snakeGrow.OnDeathCondition -= EnterGameOver;
+            snakeGrow.OnDeathCondition += EnterGameOver;
+        }
     }
 
     private void OnDisable()
     {
         SnakeGrow.OnSnakeCubesChanged -= HandleSnakeCubesChanged;
+        if (snakeGrow != null)
+        {
+            snakeGrow.OnDeathCondition -= EnterGameOver;
+        }
         StopAllRunningCoroutines();
         ResetVisualScales();
     }
@@ -322,6 +408,7 @@ public class GameStakes : MonoBehaviour
 
         // Ensure initially in Normal state with Shed button disabled and warning UI ready & hidden
         currentState = StakeState.Normal;
+        shedCount = 0;
         SetShedButtonActive(false);
 
         if (warningUI != null)
@@ -410,8 +497,11 @@ public class GameStakes : MonoBehaviour
         UpdateCountdownTextDisplay();
 
         // Evaluate Shed button interactability every frame in case head value changed
-        bool canShed = (snakeGrow != null && snakeGrow.HeadValue >= 8);
+        bool canShed = CanPlayerShed();
         SetShedButtonActive(canShed);
+
+        // Update warning text dynamically in case head value or shed status changed
+        UpdateWarningMessageText(GetWarningMessageForCubes(snakeGrow != null ? snakeGrow.TotalCubeCount : monitoredCubes));
     }
 
     private void UpdateCountdownTextDisplay()
@@ -443,6 +533,13 @@ public class GameStakes : MonoBehaviour
     {
         if (currentState == StakeState.Warning || currentState == StakeState.GameOver) return;
 
+        // If a post-shed message dismissal was scheduled, cancel it now that we re-entered warning
+        if (postShedMessageCoroutine != null)
+        {
+            StopCoroutine(postShedMessageCoroutine);
+            postShedMessageCoroutine = null;
+        }
+
         currentState = StakeState.Warning;
 
         // Calculate stake duration (accounting for any extra blocks if entered above max)
@@ -459,7 +556,7 @@ public class GameStakes : MonoBehaviour
         AnimateWarningUI(true);
 
         // Evaluate Shed button
-        bool canShed = (snakeGrow != null && snakeGrow.HeadValue >= 8);
+        bool canShed = CanPlayerShed();
         SetShedButtonActive(canShed);
     }
 
@@ -472,8 +569,11 @@ public class GameStakes : MonoBehaviour
         // Restore original countdown text and color
         RestoreCountdownDefaults();
 
-        // Smoothly hide Warning UI
-        AnimateWarningUI(false);
+        // Smoothly hide Warning UI only if we are not displaying the post-shed penalty message
+        if (postShedMessageCoroutine == null)
+        {
+            AnimateWarningUI(false);
+        }
 
         // Disable Shed button
         SetShedButtonActive(false);
@@ -481,7 +581,8 @@ public class GameStakes : MonoBehaviour
 
     /// <summary>
     /// Called when the player presses the Shed button.
-    /// Initiates emergency shrink to targetSnakeLength, halving the head value and animating removed blocks.
+    /// Initiates emergency shrink to targetSnakeLength, reducing the head value according to:
+    /// Shed Cost = Head Power / 2^n (where n is the current Shed number).
     /// </summary>
     public void TriggerShed()
     {
@@ -502,24 +603,59 @@ public class GameStakes : MonoBehaviour
             return;
         }
 
-        if (snakeGrow.HeadValue < 8)
+        if (!CanPlayerShed())
         {
-            Debug.LogWarning($"[GameStakes] Cannot Shed: Head value ({snakeGrow.HeadValue}) is below 8.");
+            string reason = GetCannotShedReason();
+            Debug.LogWarning($"[GameStakes] {reason}");
+            UpdateWarningMessageText(reason);
+            AnimateWarningUI(true);
             return;
         }
 
+        shedCount++;
         currentState = StakeState.Shedding;
         SetShedButtonActive(false);
 
-        snakeGrow.PerformShed(targetSnakeLength, OnShedCompleted);
+        snakeGrow.PerformShed(targetSnakeLength, shedCount, OnShedCompleted);
     }
 
     private void OnShedCompleted()
     {
         int current = snakeGrow != null ? snakeGrow.TotalCubeCount : monitoredCubes;
+
+        // Format post-shed warning message communicating the penalty for the next Shed
+        int nextMultiplier = GetNextShedPenalty();
+        int currentHead = snakeGrow != null ? snakeGrow.HeadValue : 0;
+        string postShedMessage;
+
+        if (currentHead <= 2)
+        {
+            postShedMessage = "Shed used! Head power is 2 - cannot Shed again!";
+        }
+        else if (currentHead < nextMultiplier || currentHead / nextMultiplier <= 1)
+        {
+            postShedMessage = $"Shed used! Next Shed power is {nextMultiplier}\u00D7 and Head is {currentHead}.";
+        }
+        else
+        {
+            postShedMessage = $"Shed used! Next Shed will cost {nextMultiplier}\u00D7 your current Head Power.";
+        }
+
+        EnsureWarningUIInstance();
+        UpdateWarningMessageText(postShedMessage);
+        AnimateWarningUI(true);
+
         if (current < maxSnakeLength)
         {
-            EnterNormal(animated: true);
+            currentState = StakeState.Normal;
+            RestoreCountdownDefaults();
+            SetShedButtonActive(false);
+
+            if (postShedMessageCoroutine != null)
+            {
+                StopCoroutine(postShedMessageCoroutine);
+            }
+            postShedMessageCoroutine = StartCoroutine(DismissPostShedMessageAfterDelay(3.0f));
         }
         else
         {
@@ -527,6 +663,18 @@ public class GameStakes : MonoBehaviour
             currentState = StakeState.Normal;
             EnterWarning();
         }
+    }
+
+    private IEnumerator DismissPostShedMessageAfterDelay(float delay)
+    {
+        yield return new WaitForSecondsRealtime(delay);
+
+        if (currentState == StakeState.Normal)
+        {
+            AnimateWarningUI(false);
+        }
+
+        postShedMessageCoroutine = null;
     }
 
     private void EnterGameOver()
@@ -761,7 +909,7 @@ public class GameStakes : MonoBehaviour
             warningMessageText = ResolveWarningTMP();
         }
 
-        if (warningMessageText != null)
+        if (warningMessageText != null && warningMessageText.text != message)
         {
             warningMessageText.text = message;
         }
@@ -823,12 +971,26 @@ public class GameStakes : MonoBehaviour
 
     private string GetWarningMessageForCubes(int cubes)
     {
+        string baseMsg;
         if (cubes > maxSnakeLength)
         {
-            return tooLongMessage;
+            baseMsg = tooLongMessage;
+        }
+        else
+        {
+            baseMsg = string.Format(limitReachedMessage, maxSnakeLength - 1);
         }
 
-        return string.Format(limitReachedMessage, maxSnakeLength - 1);
+        if (!CanPlayerShed())
+        {
+            string reason = GetCannotShedReason();
+            if (!string.IsNullOrEmpty(reason))
+            {
+                return $"{baseMsg}\n{reason}";
+            }
+        }
+
+        return baseMsg;
     }
 
     private void SetShedButtonActive(bool active)
@@ -840,18 +1002,21 @@ public class GameStakes : MonoBehaviour
 
         if (shedButton == null) return;
 
+        bool inWarning = (currentState == StakeState.Warning);
+
         Button btn = shedButton.GetComponent<Button>();
         if (btn != null)
         {
-            btn.interactable = active;
+            // Allow clicking in Warning state so tapping it provides feedback why player cannot shed
+            btn.interactable = inWarning;
         }
 
         CanvasGroup cg = shedButton.GetComponent<CanvasGroup>();
         if (cg != null)
         {
-            cg.interactable = active;
-            cg.blocksRaycasts = active;
-            cg.alpha = active ? 1f : 0.4f;
+            cg.interactable = inWarning;
+            cg.blocksRaycasts = inWarning;
+            cg.alpha = active ? 1f : 0.45f;
         }
         else
         {
@@ -1100,17 +1265,24 @@ public class GameStakes : MonoBehaviour
         if (SnakeGrow.Instance != null)
         {
             snakeGrow = SnakeGrow.Instance;
-            return;
+        }
+        else
+        {
+            snakeGrow = FindObjectOfType<SnakeGrow>();
+            if (snakeGrow == null)
+            {
+                GameObject playerObj = GameObject.FindWithTag("Player");
+                if (playerObj != null)
+                {
+                    snakeGrow = playerObj.GetComponent<SnakeGrow>();
+                }
+            }
         }
 
-        snakeGrow = FindObjectOfType<SnakeGrow>();
-        if (snakeGrow == null)
+        if (snakeGrow != null)
         {
-            GameObject playerObj = GameObject.FindWithTag("Player");
-            if (playerObj != null)
-            {
-                snakeGrow = playerObj.GetComponent<SnakeGrow>();
-            }
+            snakeGrow.OnDeathCondition -= EnterGameOver;
+            snakeGrow.OnDeathCondition += EnterGameOver;
         }
     }
 
@@ -1183,6 +1355,12 @@ public class GameStakes : MonoBehaviour
         {
             StopCoroutine(gameOverAnimationCoroutine);
             gameOverAnimationCoroutine = null;
+        }
+
+        if (postShedMessageCoroutine != null)
+        {
+            StopCoroutine(postShedMessageCoroutine);
+            postShedMessageCoroutine = null;
         }
     }
 
@@ -1302,7 +1480,7 @@ public class GameStakes : MonoBehaviour
                 }
 
                 // Re-evaluate Shed button
-                bool canShed = (snakeGrow != null && snakeGrow.HeadValue >= 8);
+                bool canShed = CanPlayerShed();
                 SetShedButtonActive(canShed);
             }
         }
