@@ -90,6 +90,33 @@ public class SnakeGrow : MonoBehaviour
     [Range(1.05f, 1.5f)]
     [SerializeField] private float headDamageScaleMultiplier = 1.25f;
 
+    [Header("Audio Settings")]
+    [Tooltip("Sound played when collecting / eating a pickup. Assign your eat sound clip here in the Inspector.")]
+    [SerializeField] private AudioClip eatSoundClip;
+
+    [Tooltip("Playback volume for the eat sound.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float eatSoundVolume = 1f;
+
+    [Tooltip("Sound played when two blocks merge together. Assign your merge sound clip here in the Inspector.")]
+    [SerializeField] private AudioClip mergeSoundClip;
+
+    [Tooltip("Playback volume for the merge sound.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float mergeSoundVolume = 1f;
+
+    [Tooltip("Slightly randomize pitch when playing audio to keep fast consecutive eats/merges dynamic and punchy.")]
+    [SerializeField] private bool randomizePitch = true;
+
+    [Tooltip("AudioSource component on the Player. If unassigned, will automatically find or add one.")]
+    [SerializeField] private AudioSource audioSource;
+
+    public AudioClip EatSoundClip { get => eatSoundClip; set => eatSoundClip = value; }
+    public float EatSoundVolume { get => eatSoundVolume; set => eatSoundVolume = value; }
+    public AudioClip MergeSoundClip { get => mergeSoundClip; set => mergeSoundClip = value; }
+    public float MergeSoundVolume { get => mergeSoundVolume; set => mergeSoundVolume = value; }
+    public AudioSource SnakeAudioSource { get => audioSource; set => audioSource = value; }
+
     /// <summary>
     /// Event triggered when the Head's value would be reduced below 2.
     /// Can be subscribed to by game-over or death systems.
@@ -230,6 +257,8 @@ public class SnakeGrow : MonoBehaviour
                 head.gameObject.AddComponent<body>();
             }
         }
+
+        EnsureAudioSource();
     }
 
     /// <summary>
@@ -831,6 +860,9 @@ public class SnakeGrow : MonoBehaviour
             }
         }
 
+        // Play the merge sound effect
+        PlayMergeSound(isHeadMerge);
+
         // Remove the rear block
         segments.RemoveAt(i + 1);
         NotifyCubesChanged();
@@ -990,5 +1022,89 @@ public class SnakeGrow : MonoBehaviour
         }
 
         playerMovement.SyncBodySegments(bodyList);
+    }
+
+    /// <summary>
+    /// Ensures that an AudioSource component is ready on this GameObject.
+    /// Configures it for 2D playback so player sounds stay crisp and balanced regardless of camera distance.
+    /// </summary>
+    public void EnsureAudioSource()
+    {
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+
+        if (audioSource != null)
+        {
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 0f; // 2D stereo playback for clear player SFX
+        }
+    }
+
+    /// <summary>
+    /// Plays the pickup eating sound effect.
+    /// If an override clip is passed (e.g. from Pickup.cs), that clip is played;
+    /// otherwise falls back to the serialized eatSoundClip assigned in the Inspector.
+    /// </summary>
+    public void PlayEatSound(AudioClip overrideClip = null, float volumeMultiplier = 1f)
+    {
+        AudioClip clipToPlay = overrideClip != null ? overrideClip : eatSoundClip;
+        if (clipToPlay == null) return;
+
+        EnsureAudioSource();
+
+        float finalVolume = eatSoundVolume * Mathf.Clamp01(volumeMultiplier);
+        if (audioSource != null)
+        {
+            float originalPitch = audioSource.pitch;
+            if (randomizePitch)
+            {
+                audioSource.pitch = UnityEngine.Random.Range(0.95f, 1.05f);
+            }
+
+            audioSource.PlayOneShot(clipToPlay, finalVolume);
+            audioSource.pitch = originalPitch;
+        }
+        else
+        {
+            AudioSource.PlayClipAtPoint(clipToPlay, transform.position, finalVolume);
+        }
+    }
+
+    /// <summary>
+    /// Plays the merge sound effect when two blocks merge into one.
+    /// Supports a slight pitch boost on Head merges for rewarding audio feedback.
+    /// </summary>
+    public void PlayMergeSound(bool isHeadMerge = false)
+    {
+        if (mergeSoundClip == null) return;
+
+        EnsureAudioSource();
+
+        if (audioSource != null)
+        {
+            float originalPitch = audioSource.pitch;
+            if (randomizePitch)
+            {
+                float basePitch = isHeadMerge ? 1.08f : 1.0f;
+                audioSource.pitch = basePitch * UnityEngine.Random.Range(0.97f, 1.03f);
+            }
+            else if (isHeadMerge)
+            {
+                audioSource.pitch = 1.08f;
+            }
+
+            audioSource.PlayOneShot(mergeSoundClip, mergeSoundVolume);
+            audioSource.pitch = originalPitch;
+        }
+        else
+        {
+            AudioSource.PlayClipAtPoint(mergeSoundClip, transform.position, mergeSoundVolume);
+        }
     }
 }

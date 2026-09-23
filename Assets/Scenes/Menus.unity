@@ -450,7 +450,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -548,6 +548,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!114 &189723009
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1783,6 +1785,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!82 &549705998
 AudioSource:
   m_ObjectHideFlags: 0
@@ -1796,7 +1800,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -1960,7 +1964,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -2058,6 +2062,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!114 &666718156
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2232,7 +2238,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -2330,6 +2336,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!114 &666836277
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2587,6 +2595,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!82 &702787319
 AudioSource:
   m_ObjectHideFlags: 0
@@ -2600,7 +2610,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -3561,6 +3571,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!82 &1451168373
 AudioSource:
   m_ObjectHideFlags: 0
@@ -3574,7 +3586,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -3841,7 +3853,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -3939,6 +3951,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!114 &1497145515
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4421,6 +4435,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!82 &1595807289
 AudioSource:
   m_ObjectHideFlags: 0
@@ -4434,7 +4450,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -5951,6 +5967,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 0}
 --- !u!82 &2003551961
 AudioSource:
   m_ObjectHideFlags: 0
@@ -5964,7 +5982,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.45
   m_Pitch: 1
   Loop: 0
   Mute: 0

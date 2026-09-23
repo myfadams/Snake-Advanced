@@ -60,6 +60,17 @@ public class PickupManager : MonoBehaviour
     [Tooltip("The Pickup prefab to instantiate.")]
     [SerializeField] private Pickup pickupPrefab;
 
+    [Header("Audio")]
+    [Tooltip("Optional fallback eat sound clip to pass to spawned pickups if they have none assigned.")]
+    [SerializeField] private AudioClip eatSoundClip;
+
+    [Tooltip("Playback volume for the eat sound.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float eatSoundVolume = 1f;
+
+    public AudioClip EatSoundClip { get => eatSoundClip; set => eatSoundClip = value; }
+    public float EatSoundVolume { get => eatSoundVolume; set => eatSoundVolume = value; }
+
     [Header("Player Reference")]
     [Tooltip("The player/snake transform pickups should spawn near. If left empty, " +
              "Floor Bounds Center below is used as a fallback anchor point.")]
@@ -288,6 +299,11 @@ public class PickupManager : MonoBehaviour
 
         int value = GetProgressionBlockValue();
         newPickup.Initialize(value, player);
+        if (eatSoundClip != null && newPickup.EatSoundClip == null)
+        {
+            newPickup.EatSoundClip = eatSoundClip;
+            newPickup.EatSoundVolume = eatSoundVolume;
+        }
 
         activePickups.Add(newPickup);
         return true;

@@ -324,6 +324,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
 --- !u!1 &5375279959079058274
 GameObject:
   m_ObjectHideFlags: 0
@@ -459,6 +461,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}
 --- !u!1 &6251892653945732124
 GameObject:
   m_ObjectHideFlags: 0
@@ -594,3 +598,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ButtonHover
   hoverScale: 1.05
   animationSpeed: 10
+  hoverVolume: 0.45
+  hoverSoundClip: {fileID: 8300000, guid: 3da0637e39bb89043b9951361d7a67c6, type: 3}

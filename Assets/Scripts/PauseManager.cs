@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// Manages pausing the game, activating/instantiating the background dimming overlay, pause menu,
@@ -128,7 +129,7 @@ public class PauseManager : MonoBehaviour
     {
         if (enableKeyboardShortcut)
         {
-            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.P))
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
                 if (currentPopupInstance != null && currentPopupInstance.activeSelf)
                 {

@@ -46,6 +46,17 @@ public class Pickup : MonoBehaviour
     [Tooltip("Fallback lifetime for the spawned effect if it has no ParticleSystem to measure a duration from.")]
     [SerializeField] private float collectionEffectFallbackDuration = 2f;
 
+    [Header("Audio")]
+    [Tooltip("Sound played when this pickup is eaten. If left unassigned, SnakeGrow's Eat Sound Clip is played.")]
+    [SerializeField] private AudioClip eatSoundClip;
+
+    [Tooltip("Playback volume for the eat sound.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float eatSoundVolume = 1f;
+
+    public AudioClip EatSoundClip { get => eatSoundClip; set => eatSoundClip = value; }
+    public float EatSoundVolume { get => eatSoundVolume; set => eatSoundVolume = value; }
+
     [Header("Out-of-View Lifetime")]
     [Tooltip("Camera used to check visibility. Leave empty to use Camera.main.")]
     [SerializeField] private Camera gameplayCamera;
@@ -227,8 +238,25 @@ public class Pickup : MonoBehaviour
         }
 
         SpawnCollectionEffect();
+
+        // -------------------------------------------------------------------------
+        // PREVIOUS SOUND CODE (FLAWED):
         // AudioSource eatSound = gameObject.GetComponent<AudioSource>();
         // eatSound?.Play();
+        //
+        // WHY IT FAILED:
+        // Destroy(gameObject) is called on the very next line, which instantly destroys
+        // this GameObject and its AudioSource component in the same frame, abruptly cutting
+        // off the sound before it can finish (or even begin) playing.
+        //
+        // BETTER IMPLEMENTATION:
+        // PlayEatSound() delegates playback to the player's persistent SnakeGrow AudioSource
+        // (with PlayOneShot and dynamic pitch randomization), or falls back to
+        // AudioSource.PlayClipAtPoint, which spawns an independent temporary audio object
+        // that safely plays the entire sound and automatically cleans itself up.
+        // -------------------------------------------------------------------------
+        PlayEatSound();
+
         Destroy(gameObject);
     }
 
@@ -310,5 +338,31 @@ public class Pickup : MonoBehaviour
         }
 
         return other.transform.IsChildOf(player);
+    }
+
+    /// <summary>
+    /// Plays the pickup eating sound effect.
+    /// Prefers delegating to SnakeGrow so the sound plays through the player's AudioSource,
+    /// or falls back to AudioSource.PlayClipAtPoint so the sound continues playing even after
+    /// this pickup GameObject is destroyed.
+    /// </summary>
+    private void PlayEatSound()
+    {
+        if (snakeGrow != null)
+        {
+            snakeGrow.PlayEatSound(eatSoundClip, eatSoundVolume);
+            return;
+        }
+
+        if (SnakeGrow.Instance != null)
+        {
+            SnakeGrow.Instance.PlayEatSound(eatSoundClip, eatSoundVolume);
+            return;
+        }
+
+        if (eatSoundClip != null)
+        {
+            AudioSource.PlayClipAtPoint(eatSoundClip, transform.position, eatSoundVolume);
+        }
     }
 }
