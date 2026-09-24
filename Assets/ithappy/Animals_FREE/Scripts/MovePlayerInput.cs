@@ -38,6 +38,12 @@ namespace ithappy.Animals_FREE
         private void Awake()
         {
             m_Mover = GetComponent<CreatureMover>();
+            
+            // If this creature is controlled by AnimalAI, disable this player input script immediately
+            if (GetComponent<AnimalAI>() != null)
+            {
+                enabled = false;
+            }
         }
 
         private void Update()
@@ -48,13 +54,26 @@ namespace ithappy.Animals_FREE
 
         public void GatherInput()
         {
-            m_Axis = new Vector2(Input.GetAxis(m_HorizontalAxis), Input.GetAxis(m_VerticalAxis));
-            m_IsRun = Input.GetKey(m_RunKey);
-            m_IsJump = Input.GetButton(m_JumpButton);
+#if ENABLE_LEGACY_INPUT_MANAGER
+            try
+            {
+                m_Axis = new Vector2(Input.GetAxis(m_HorizontalAxis), Input.GetAxis(m_VerticalAxis));
+                m_IsRun = Input.GetKey(m_RunKey);
+                m_IsJump = Input.GetButton(m_JumpButton);
 
-            m_Target = (m_Camera == null) ? Vector3.zero : m_Camera.Target;
-            m_MouseDelta = new Vector2(Input.GetAxis(m_MouseX), Input.GetAxis(m_MouseY));
-            m_Scroll = Input.GetAxis(m_MouseScroll);
+                m_Target = (m_Camera == null) ? Vector3.zero : m_Camera.Target;
+                m_MouseDelta = new Vector2(Input.GetAxis(m_MouseX), Input.GetAxis(m_MouseY));
+                m_Scroll = Input.GetAxis(m_MouseScroll);
+            }
+            catch (System.Exception)
+            {
+                // In case project uses new Input System package without legacy input support
+                enabled = false;
+            }
+#else
+            // Project active input handling is set to the new Input System package
+            enabled = false;
+#endif
         }
 
         public void BindMover(CreatureMover mover)
@@ -75,4 +94,4 @@ namespace ithappy.Animals_FREE
             }
         }
     }
-}
+}

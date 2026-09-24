@@ -41,7 +41,8 @@ MonoBehaviour:
   - {fileID: 743080498313837265, guid: 7aeed15ede1dd374d9a41340cba8a3ef, type: 3}
   - {fileID: 8601597895005287122, guid: cd4d84378d9cee940bea222edc7ddc73, type: 3}
   - {fileID: 320885738364841172, guid: cc016a9d4a53f8449b4700fca5fcafcf, type: 3}
-  - {fileID: 320885738364841172, guid: cc016a9d4a53f8449b4700fca5fcafcf, type: 3}
+  - {fileID: 5142545913159364934, guid: 1182793d5d2e56f4b9259f54399a0546, type: 3}
+  - {fileID: 4962269954228545759, guid: d08d37c09a663764c81ec5d19332b180, type: 3}
   HealthBars: []
   animals:
   - {fileID: 2629182449500102118, guid: 39259cb9491fdb340951b64b43c662a0, type: 3}

@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using ithappy.Animals_FREE;
 
 public class AnimalSpawner : MonoBehaviour
 {
@@ -24,30 +25,107 @@ public class AnimalSpawner : MonoBehaviour
     private Transform playerTransform;
     private List<AnimalAI> activeAnimals = new List<AnimalAI>();
     private MapEnvironmentType lastEnv = (MapEnvironmentType)(-1);
+    private bool initialized = false;
+
+    public FloorManager FloorManager
+    {
+        get
+        {
+            if (floorManager == null) floorManager = GetComponent<FloorManager>() ?? FindObjectOfType<FloorManager>();
+            return floorManager;
+        }
+    }
+
+    public void EnsureInitialized()
+    {
+        if (initialized) return;
+        initialized = true;
+
+        if (floorManager == null) floorManager = GetComponent<FloorManager>() ?? FindObjectOfType<FloorManager>();
+
+        if (environmentSettings == null) environmentSettings = new List<EnvironmentAnimalSettings>();
+
+        // Ensure default settings exist for each environment type
+        EnsureSetting(MapEnvironmentType.NeonSciFi, false); // Neon map must NEVER have animals
+        EnsureSetting(MapEnvironmentType.ForestNature, true);
+        EnsureSetting(MapEnvironmentType.AbandonedWasteland, true);
+        EnsureSetting(MapEnvironmentType.ClassicChess, true);
+
+        if (playerTransform == null)
+        {
+            GameObject player = GameObject.FindWithTag("Player");
+            if (player != null) playerTransform = player.transform;
+        }
+    }
+
+    private void EnsureSetting(MapEnvironmentType env, bool defaultAllow)
+    {
+        for (int i = 0; i < environmentSettings.Count; i++)
+        {
+            if (environmentSettings[i].environmentType == env) return;
+        }
+        environmentSettings.Add(new EnvironmentAnimalSettings { environmentType = env, allowAnimals = defaultAllow });
+    }
 
     private void Awake()
     {
-        floorManager = GetComponent<FloorManager>();
-        if (floorManager == null) floorManager = FindObjectOfType<FloorManager>();
+        EnsureInitialized();
+    }
 
-        // Setup default environment settings if empty
-        if (environmentSettings.Count == 0)
+    private void Start()
+    {
+        EnsureInitialized();
+        PopulateInitialFloorsIfNeeded();
+    }
+
+    /// <summary>
+    /// Checks the currently active floors near the player on startup and spawns initial animals
+    /// so they are immediately visible on close floor tiles, just like environment props.
+    /// </summary>
+    public void PopulateInitialFloorsIfNeeded()
+    {
+        EnsureInitialized();
+
+        MapEnvironmentType currentEnv = FloorManager != null ? FloorManager.GetCurrentEnvironmentType() : MapEnvironmentType.ForestNature;
+        EnvironmentAnimalSettings settings = GetSettingsForEnvironment(currentEnv);
+        if (!settings.allowAnimals) return;
+
+        activeAnimals.RemoveAll(a => a == null || a.gameObject == null);
+        if (activeAnimals.Count >= maxAnimals) return;
+
+        if (FloorManager == null) return;
+
+        var floors = FloorManager.GetActiveFloors();
+        if (floors == null) return;
+
+        List<Transform> floorList = new List<Transform>(floors);
+        if (playerTransform != null)
         {
-            environmentSettings.Add(new EnvironmentAnimalSettings { environmentType = MapEnvironmentType.NeonSciFi, allowAnimals = false });
-            environmentSettings.Add(new EnvironmentAnimalSettings { environmentType = MapEnvironmentType.ForestNature, allowAnimals = true });
-            environmentSettings.Add(new EnvironmentAnimalSettings { environmentType = MapEnvironmentType.AbandonedWasteland, allowAnimals = true });
-            environmentSettings.Add(new EnvironmentAnimalSettings { environmentType = MapEnvironmentType.ClassicChess, allowAnimals = false });
+            floorList.Sort((a, b) =>
+            {
+                if (a == null || b == null) return 0;
+                float da = Vector3.Distance(a.position, playerTransform.position);
+                float db = Vector3.Distance(b.position, playerTransform.position);
+                return da.CompareTo(db);
+            });
         }
 
-        GameObject player = GameObject.FindWithTag("Player");
-        if (player != null) playerTransform = player.transform;
+        // Spawn on the closest floors so animals are visible immediately near the player
+        int targetInitialCount = Mathf.Min(3, maxAnimals);
+        foreach (Transform floor in floorList)
+        {
+            if (activeAnimals.Count >= targetInitialCount) break;
+            if (floor == null) continue;
+
+            TrySpawnAnimalOnFloor(floor, true);
+        }
     }
 
     private void Update()
     {
-        if (floorManager == null) return;
+        if (FloorManager == null) return;
 
-        MapEnvironmentType currentEnv = floorManager.GetCurrentEnvironmentType();
+        MapEnvironmentType currentEnv = FloorManager.GetCurrentEnvironmentType();
         
         // Handle map transitions
         if (currentEnv != lastEnv)
@@ -65,14 +143,17 @@ public class AnimalSpawner : MonoBehaviour
         activeAnimals.RemoveAll(a => a == null || a.gameObject == null);
     }
 
-    private EnvironmentAnimalSettings GetSettingsForEnvironment(MapEnvironmentType env)
+    public EnvironmentAnimalSettings GetSettingsForEnvironment(MapEnvironmentType env)
     {
+        EnsureInitialized();
         foreach (var setting in environmentSettings)
         {
             if (setting.environmentType == env)
                 return setting;
         }
-        return new EnvironmentAnimalSettings { environmentType = env, allowAnimals = false };
+        // Default: Neon is false, all other environments allow animals
+        bool allow = (env != MapEnvironmentType.NeonSciFi);
+        return new EnvironmentAnimalSettings { environmentType = env, allowAnimals = allow };
     }
 
     /// <summary>
@@ -81,42 +162,52 @@ public class AnimalSpawner : MonoBehaviour
     /// </summary>
     public void SpawnAnimalsForFloor(Transform floor)
     {
-        if (floor == null) return;
-        if (floorManager == null) floorManager = GetComponent<FloorManager>() ?? FindObjectOfType<FloorManager>();
-        if (floorManager == null || floorManager.MaterialsList == null) return;
+        TrySpawnAnimalOnFloor(floor, false);
+    }
 
-        MapEnvironmentType currentEnv = floorManager.GetCurrentEnvironmentType();
+    public bool TrySpawnAnimalOnFloor(Transform floor, bool forceSpawn = false)
+    {
+        if (floor == null) return false;
+        EnsureInitialized();
+        if (FloorManager == null || FloorManager.MaterialsList == null) return false;
+
+        MapEnvironmentType currentEnv = FloorManager.GetCurrentEnvironmentType();
         EnvironmentAnimalSettings settings = GetSettingsForEnvironment(currentEnv);
 
-        if (!settings.allowAnimals) return;
+        if (!settings.allowAnimals) return false;
 
         // Clean up null references before checking count
         activeAnimals.RemoveAll(a => a == null || a.gameObject == null);
 
         // Respect population limit
-        if (activeAnimals.Count >= maxAnimals) return;
+        if (activeAnimals.Count >= maxAnimals) return false;
 
-        // Roll spawn chance per floor tile for natural distribution
-        if (Random.value > spawnChancePerFloor) return;
+        // If not force-spawning: roll chance
+        if (!forceSpawn)
+        {
+            // If there are currently no animals in the scene, boost the chance so at least one spawns close
+            float effectiveChance = activeAnimals.Count == 0 ? Mathf.Max(0.85f, spawnChancePerFloor) : spawnChancePerFloor;
+            if (Random.value > effectiveChance) return false;
+        }
 
         // Get animal array (from override or default)
         GameObject[] animalArray = (settings.specificAnimals != null && settings.specificAnimals.Length > 0) 
             ? settings.specificAnimals 
-            : floorManager.MaterialsList.animals;
+            : FloorManager.MaterialsList.animals;
 
-        if (animalArray == null || animalArray.Length == 0) return;
+        if (animalArray == null || animalArray.Length == 0) return false;
 
         // Pick a random animal prefab
         GameObject animalPrefab = animalArray[Random.Range(0, animalArray.Length)];
-        if (animalPrefab == null) return;
+        if (animalPrefab == null) return false;
 
-        float candidateRadius = floorManager.GetPrefabRadius(animalPrefab);
+        float candidateRadius = FloorManager.GetPrefabRadius(animalPrefab);
         if (candidateRadius <= 0f) candidateRadius = 0.5f;
 
         // Use FloorManager's exact placement checks (strictly inside floor bounds, no prop overlap, no player overlap, no scene obstacle)
-        if (!floorManager.FindValidFloorPosition(floor, candidateRadius, out Vector2 validLocalPos, out Vector3 candidateWorld))
+        if (!FloorManager.FindValidFloorPosition(floor, candidateRadius, out Vector2 validLocalPos, out Vector3 candidateWorld))
         {
-            return;
+            return false;
         }
 
         // Check distance against other active animals
@@ -125,43 +216,63 @@ public class AnimalSpawner : MonoBehaviour
             if (activeAnimals[i] == null) continue;
             if (Vector3.Distance(candidateWorld, activeAnimals[i].transform.position) < minDistanceBetweenAnimals)
             {
-                return; // Too close to another animal
+                return false; // Too close to another animal
             }
         }
 
         SpawnAnimal(animalPrefab, validLocalPos, candidateRadius, floor);
+        return true;
     }
 
     private void SpawnAnimal(GameObject prefab, Vector2 localPos, float radius, Transform parentFloor)
     {
-        // 1. Instantiate parented directly to the floor tile
-        GameObject instance = Instantiate(prefab, parentFloor);
-        
-        // 2. Temporarily disable CharacterController so Unity's physics doesn't depenetrate or pop it off the tile
-        CharacterController cc = instance.GetComponent<CharacterController>();
-        if (cc != null) cc.enabled = false;
+        // 1. Calculate candidate world position on the floor tile
+        Vector3 candidateWorld = parentFloor.TransformPoint(new Vector3(localPos.x, 0f, localPos.y));
 
-        instance.transform.localScale = prefab.transform.localScale;
-        instance.transform.localPosition = new Vector3(localPos.x, 0f, localPos.y);
-        instance.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-
-        // 3. Align vertical position so animal feet sit flush on the floor surface (same as environment props)
-        floorManager.AlignPropToFloorSurface(instance, parentFloor);
-        if (cc != null) cc.enabled = true;
-
-        // 4. Parent has FloorPropMarker so FloorManager.ClearProps() destroys it when the floor despawns
-        if (instance.GetComponent<FloorPropMarker>() == null)
+        // 2. Cast downward from 3.0 units above to find the exact top surface of the floor collider
+        Vector3 spawnWorldPos = candidateWorld;
+        RaycastHit[] hits = Physics.RaycastAll(new Vector3(candidateWorld.x, parentFloor.position.y + 3.0f, candidateWorld.z), Vector3.down, 6.0f);
+        float bestGroundY = parentFloor.position.y;
+        for (int i = 0; i < hits.Length; i++)
         {
-            instance.AddComponent<FloorPropMarker>();
+            if (FloorManager.IsGroundOrFloor(hits[i].collider))
+            {
+                bestGroundY = hits[i].point.y;
+                break;
+            }
+        }
+        spawnWorldPos.y = bestGroundY;
+
+        // 3. Instantiate parented to AnimalSpawner (transform) so floor tile recycling never teleports or destroys animals
+        Quaternion randomRot = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        GameObject instance = Instantiate(prefab, spawnWorldPos, randomRot, transform);
+        instance.transform.localScale = prefab.transform.localScale;
+
+        // 4. Register placed object with FloorManager so environment props won't overlap the animal's footprint
+        FloorManager.RegisterPlacedObject(parentFloor, spawnWorldPos, radius);
+
+        // 5. Ensure demo player input script is removed so legacy Input is never polled
+        ithappy.Animals_FREE.MovePlayerInput playerInput = instance.GetComponent<ithappy.Animals_FREE.MovePlayerInput>();
+        if (playerInput != null)
+        {
+            playerInput.enabled = false;
+            Destroy(playerInput);
         }
 
-        // 5. Register in FloorManager so future props won't spawn on top of this animal
-        floorManager.RegisterPlacedObject(parentFloor, instance.transform.position, radius);
+        // 6. Ensure CreatureMover immediately initializes and forces the idle animation pose
+        CreatureMover mover = instance.GetComponent<CreatureMover>();
+        if (mover != null)
+        {
+            mover.ForceIdleAnimation();
+            if (mover.Controller != null && mover.Controller.enabled)
+            {
+                mover.Controller.Move(Vector3.down * 0.05f);
+            }
+        }
 
         AnimalAI ai = instance.GetComponent<AnimalAI>();
         if (ai == null)
         {
-            Debug.LogWarning("Spawned animal prefab is missing AnimalAI component! Adding it automatically.");
             ai = instance.AddComponent<AnimalAI>();
         }
 

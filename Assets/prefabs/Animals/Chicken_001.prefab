@@ -1243,10 +1243,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be2f4aa750c530144bd7219a00354c98, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_WalkSpeed: 1
-  m_RunSpeed: 4
-  m_RotateSpeed: 245
-  m_Space: 1
+  m_WalkSpeed: 0.9
+  m_RunSpeed: 2
+  m_RotateSpeed: 170
+  m_Space: 0
   m_JumpHeight: 5
   m_VerticalID: Vert
   m_StateID: State
@@ -1268,10 +1268,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AnimalAI
   currentState: 0
-  walkSpeed: 1
-  fleeSpeed: 4
-  detectionRadius: 15
-  fleeEscapeRadius: 25
+  walkSpeed: 0.6
+  fleeSpeed: 1.3
+  rotateSpeed: 120
+  lookAheadDistance: 1.8
+  fleeLookAheadDistance: 2.8
+  obstacleClearanceBuffer: 0.15
+  stuckCheckDuration: 0.4
+  detectionRadius: 2
+  fleeEscapeRadius: 10
   minIdleTime: 2
   maxIdleTime: 6
   minWanderDistance: 2
