@@ -49,3 +49,7 @@ MonoBehaviour:
   - {fileID: 6397291155531275063, guid: d469de306d374ca4ea353a1241ed069b, type: 3}
   - {fileID: 8073443194988779917, guid: 87336f11bad06ae4f81f6a1be1066879, type: 3}
   bushes: []
+  powerupsBox:
+  - {fileID: 3991965115845445818, guid: 469a7dd1b3483534b92ec6a2e8c13b7f, type: 3}
+  - {fileID: 3991965115845445818, guid: 29a6f52f23da2cf43b3304dd596cb0c6, type: 3}
+  - {fileID: 3991965115845445818, guid: 991fdd0c5f768044492de3842c8557b8, type: 3}

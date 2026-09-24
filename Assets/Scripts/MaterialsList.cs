@@ -14,5 +14,6 @@ public class MaterialsList : ScriptableObject
 
     public GameObject[] animals;
     public GameObject[] bushes;
+    public GameObject[] powerupsBox;
     // public GameObject[] bbr;
 }
