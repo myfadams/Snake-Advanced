@@ -11,4 +11,8 @@ public class MaterialsList : ScriptableObject
     public GameObject[] ScifiProps;
     public GameObject[] AnyProp;
     public Sprite[] HealthBars;
+
+    public GameObject[] animals;
+    public GameObject[] bushes;
+    // public GameObject[] bbr;
 }

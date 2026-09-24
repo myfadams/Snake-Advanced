@@ -41,3 +41,10 @@ MonoBehaviour:
   - {fileID: 743080498313837265, guid: 7aeed15ede1dd374d9a41340cba8a3ef, type: 3}
   - {fileID: 8601597895005287122, guid: cd4d84378d9cee940bea222edc7ddc73, type: 3}
   - {fileID: 320885738364841172, guid: cc016a9d4a53f8449b4700fca5fcafcf, type: 3}
+  HealthBars: []
+  animals:
+  - {fileID: 2629182449500102118, guid: 15ca4494f24bf9741a48b37ec2c4c632, type: 3}
+  - {fileID: 7402009758359158996, guid: fa132d7e76634604faf2c5dbb94047e6, type: 3}
+  - {fileID: 8073443194988779917, guid: 87336f11bad06ae4f81f6a1be1066879, type: 3}
+  - {fileID: 6397291155531275063, guid: d469de306d374ca4ea353a1241ed069b, type: 3}
+  bushes: []

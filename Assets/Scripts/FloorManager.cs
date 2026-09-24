@@ -55,6 +55,8 @@ public class FloorPropMarker : MonoBehaviour { }
 [DisallowMultipleComponent]
 public class FloorManager : MonoBehaviour
 {
+    private AnimalSpawner animalSpawner;
+
     [Header("Floor Prefab")]
     [SerializeField] private GameObject floorPrefab;
 
@@ -154,6 +156,8 @@ public class FloorManager : MonoBehaviour
     private float sqrUpdateThreshold;
 
     public int ActiveTileCount => occupied.Count;
+    public IEnumerable<Transform> GetActiveFloors() => occupied.Values;
+    public float FloorTileSize => floorTileSize;
     public float SpawnRadius => Mathf.Max(0f, viewDistance) + Mathf.Max(0f, spawnBuffer);
     public float DespawnRadius => SpawnRadius + Mathf.Max(0f, despawnBuffer);
 
@@ -198,6 +202,7 @@ public class FloorManager : MonoBehaviour
 
         InitializeFloorMaterial();
         ValidateFloorTileSize();
+        animalSpawner = GetComponent<AnimalSpawner>();
         AdoptExistingFloors();
 
         if (referenceTransform == null)
@@ -307,6 +312,7 @@ public class FloorManager : MonoBehaviour
 
             occupied.Add(cell, floor);
             SpawnPropsForFloor(floor);
+            if (animalSpawner != null) animalSpawner.SpawnAnimalsForFloor(floor);
         }
     }
 
@@ -390,6 +396,7 @@ public class FloorManager : MonoBehaviour
                 tile.position = CellToWorld(cell);
                 occupied[cell] = tile;
                 SpawnPropsForFloor(tile);
+                if (animalSpawner != null) animalSpawner.SpawnAnimalsForFloor(tile);
             }
             else if (floorPrefab != null)
             {
@@ -399,6 +406,7 @@ public class FloorManager : MonoBehaviour
                 occupied[cell] = tile;
                 ApplyMaterialToTile(tile);
                 SpawnPropsForFloor(tile);
+                if (animalSpawner != null) animalSpawner.SpawnAnimalsForFloor(tile);
                 if (verboseLogging) Debug.Log($"FloorManager: spawned tile at {cell}.", this);
             }
             else
@@ -685,7 +693,7 @@ public class FloorManager : MonoBehaviour
         prefabRadiusCache.Clear();
     }
 
-    private float GetPrefabRadius(GameObject prefab)
+    public float GetPrefabRadius(GameObject prefab)
     {
         if (prefab == null) return 0.4f;
 
@@ -729,7 +737,7 @@ public class FloorManager : MonoBehaviour
         return maxRadius;
     }
 
-    private bool IsOverlappingAnyActiveProp(Vector3 candidateWorldPos, float candidateRadius)
+    public bool IsOverlappingAnyActiveProp(Vector3 candidateWorldPos, float candidateRadius)
     {
         foreach (KeyValuePair<Transform, List<PlacedPropInfo>> kvp in floorProps)
         {
@@ -753,7 +761,7 @@ public class FloorManager : MonoBehaviour
         return false;
     }
 
-    private bool IsTooCloseToPlayer(Vector3 candidateWorldPos, float candidateRadius)
+    public bool IsTooCloseToPlayer(Vector3 candidateWorldPos, float candidateRadius)
     {
         if (referenceTransform == null) return false;
 
@@ -765,7 +773,7 @@ public class FloorManager : MonoBehaviour
         return distSqr < playerClearance * playerClearance;
     }
 
-    private bool IsPositionBlockedByExistingSceneObject(Vector3 candidateWorldPos, float candidateRadius, Transform currentFloor)
+    public bool IsPositionBlockedByExistingSceneObject(Vector3 candidateWorldPos, float candidateRadius, Transform currentFloor)
     {
         float surfaceY = currentFloor.TransformPoint(Vector3.zero).y;
         Vector3 sphereCenter = new Vector3(candidateWorldPos.x, surfaceY + Mathf.Max(0.4f, candidateRadius * 0.5f), candidateWorldPos.z);
@@ -787,7 +795,7 @@ public class FloorManager : MonoBehaviour
         return false;
     }
 
-    private static bool IsGroundOrFloor(Collider col)
+    public static bool IsGroundOrFloor(Collider col)
     {
         if (col == null) return false;
 
@@ -821,6 +829,79 @@ public class FloorManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Registers an object in the floor's placed props list so subsequent spawns don't overlap it.
+    /// </summary>
+    public void RegisterPlacedObject(Transform floor, Vector3 worldPos, float radius)
+    {
+        if (floor == null) return;
+        if (!floorProps.TryGetValue(floor, out List<PlacedPropInfo> thisFloorProps))
+        {
+            thisFloorProps = new List<PlacedPropInfo>();
+            floorProps[floor] = thisFloorProps;
+        }
+        thisFloorProps.Add(new PlacedPropInfo
+        {
+            worldPosition = worldPos,
+            radius = radius
+        });
+    }
+
+    /// <summary>
+    /// Finds a valid non-overlapping local and world position strictly within the floor tile boundaries.
+    /// </summary>
+    public bool FindValidFloorPosition(Transform floor, float candidateRadius, out Vector2 validLocalPos, out Vector3 validWorldPos)
+    {
+        validLocalPos = Vector2.zero;
+        validWorldPos = Vector3.zero;
+        if (floor == null) return false;
+
+        float halfSize = floorTileSize * 0.5f;
+        float safeMargin = Mathf.Clamp(edgeMargin, 0.05f, Mathf.Max(0.05f, halfSize * 0.45f));
+        float effectiveMargin = Mathf.Max(safeMargin, candidateRadius * 0.75f);
+        float minBound = -halfSize + effectiveMargin;
+        float maxBound = halfSize - effectiveMargin;
+
+        if (maxBound < minBound)
+        {
+            minBound = 0f;
+            maxBound = 0f;
+        }
+
+        const int maxPlacementAttempts = 35;
+        for (int attempt = 0; attempt < maxPlacementAttempts; attempt++)
+        {
+            float randX = minBound < maxBound ? Random.Range(minBound, maxBound) : 0f;
+            float randZ = minBound < maxBound ? Random.Range(minBound, maxBound) : 0f;
+            Vector2 candidateLocal = new Vector2(randX, randZ);
+            Vector3 candidateWorld = floor.TransformPoint(new Vector3(candidateLocal.x, 0f, candidateLocal.y));
+
+            // A. Check against all currently active props across ALL floor tiles
+            if (IsOverlappingAnyActiveProp(candidateWorld, candidateRadius))
+            {
+                continue;
+            }
+
+            // B. Check against player reference
+            if (IsTooCloseToPlayer(candidateWorld, candidateRadius))
+            {
+                continue;
+            }
+
+            // C. Check physics scene for existing colliders
+            if (IsPositionBlockedByExistingSceneObject(candidateWorld, candidateRadius, floor))
+            {
+                continue;
+            }
+
+            validLocalPos = candidateLocal;
+            validWorldPos = candidateWorld;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Spawns random environment props for the specified floor tile based on the active map's allowed categories.
     /// </summary>
     public void SpawnPropsForFloor(Transform floor)
@@ -842,17 +923,6 @@ public class FloorManager : MonoBehaviour
             return;
         }
 
-        float halfSize = floorTileSize * 0.5f;
-        float safeMargin = Mathf.Clamp(edgeMargin, 0.05f, Mathf.Max(0.05f, halfSize * 0.45f));
-
-        if (!floorProps.TryGetValue(floor, out List<PlacedPropInfo> thisFloorProps))
-        {
-            thisFloorProps = new List<PlacedPropInfo>();
-            floorProps[floor] = thisFloorProps;
-        }
-
-        const int maxPlacementAttempts = 35;
-
         for (int i = 0; i < propsToSpawn; i++)
         {
             // 1. Randomly choose from allowed categories for this map
@@ -862,55 +932,8 @@ public class FloorManager : MonoBehaviour
 
             float candidateRadius = GetPrefabRadius(prefab);
 
-            // Keep candidate inside tile boundaries, respecting both edge margin and the prefab's footprint
-            float effectiveMargin = Mathf.Max(safeMargin, candidateRadius * 0.75f);
-            float minBound = -halfSize + effectiveMargin;
-            float maxBound = halfSize - effectiveMargin;
-
-            if (maxBound < minBound)
+            if (!FindValidFloorPosition(floor, candidateRadius, out Vector2 validLocalPos, out Vector3 candidateWorld))
             {
-                minBound = 0f;
-                maxBound = 0f;
-            }
-
-            Vector2 validLocalPos = Vector2.zero;
-            bool foundPosition = false;
-
-            for (int attempt = 0; attempt < maxPlacementAttempts; attempt++)
-            {
-                float randX = minBound < maxBound ? Random.Range(minBound, maxBound) : 0f;
-                float randZ = minBound < maxBound ? Random.Range(minBound, maxBound) : 0f;
-                Vector2 candidateLocal = new Vector2(randX, randZ);
-
-                // Convert to world position
-                Vector3 candidateWorld = floor.TransformPoint(new Vector3(candidateLocal.x, 0f, candidateLocal.y));
-
-                // A. Check against all currently active props across ALL floor tiles (same tile and neighboring tiles)
-                if (IsOverlappingAnyActiveProp(candidateWorld, candidateRadius))
-                {
-                    continue;
-                }
-
-                // B. Check against player reference
-                if (IsTooCloseToPlayer(candidateWorld, candidateRadius))
-                {
-                    continue;
-                }
-
-                // C. Check physics scene for existing colliders (Pickups, player body segments, obstacles, etc.)
-                if (IsPositionBlockedByExistingSceneObject(candidateWorld, candidateRadius, floor))
-                {
-                    continue;
-                }
-
-                validLocalPos = candidateLocal;
-                foundPosition = true;
-                break;
-            }
-
-            if (!foundPosition)
-            {
-                // Do not force spawn an object if no non-overlapping position was found!
                 continue;
             }
 
@@ -944,11 +967,7 @@ public class FloorManager : MonoBehaviour
             Physics.SyncTransforms();
 
             // Record this prop in our active tracking list
-            thisFloorProps.Add(new PlacedPropInfo
-            {
-                worldPosition = propInstance.transform.position,
-                radius = candidateRadius
-            });
+            RegisterPlacedObject(floor, propInstance.transform.position, candidateRadius);
         }
     }
 
@@ -974,14 +993,17 @@ public class FloorManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Aligns the vertical position of a spawned prop so that its lowest bounding point (from Renderers or Colliders)
+    /// Aligns the vertical position of a spawned prop or animal so that its lowest bounding point (from Renderers or Colliders)
     /// rests flush on top of the floor tile surface rather than embedding halfway in the ground.
     /// </summary>
-    private void AlignPropToFloorSurface(GameObject propInstance, Transform floor)
+    public void AlignPropToFloorSurface(GameObject propInstance, Transform floor, float customOffset = 0f)
     {
         if (propInstance == null || floor == null) return;
 
-        float targetSurfaceWorldY = floor.TransformPoint(Vector3.zero).y + propVerticalOffset;
+        CharacterController cc = propInstance.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false;
+
+        float targetSurfaceWorldY = floor.TransformPoint(Vector3.zero).y + propVerticalOffset + customOffset;
         float lowestWorldY = float.MaxValue;
         bool foundBound = false;
 
@@ -1013,6 +1035,8 @@ public class FloorManager : MonoBehaviour
             float yOffset = targetSurfaceWorldY - lowestWorldY;
             propInstance.transform.position += new Vector3(0f, yOffset, 0f);
         }
+
+        if (cc != null) cc.enabled = true;
     }
 
     /// <summary>

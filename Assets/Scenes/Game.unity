@@ -23,10 +23,10 @@ RenderSettings:
   m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
-  m_AmbientIntensity: 1
+  m_AmbientIntensity: 1.8
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 6a9a29d807a43624b8d8758de7c530d6, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -3674,6 +3674,7 @@ GameObject:
   - component: {fileID: 2060327052}
   - component: {fileID: 2060327051}
   - component: {fileID: 2060327053}
+  - component: {fileID: 2060327054}
   m_Layer: 0
   m_Name: environment
   m_TagString: Untagged
@@ -3749,9 +3750,9 @@ MonoBehaviour:
   eatSoundClip: {fileID: 0}
   eatSoundVolume: 1
   player: {fileID: 1295684225}
-  minActivePickups: 15
-  maxActivePickups: 20
-  minSpawnDistanceFromPlayer: 7
+  minActivePickups: 25
+  maxActivePickups: 35
+  minSpawnDistanceFromPlayer: 4
   maxSpawnDistanceFromPlayer: 15
   forwardBiasChance: 0.85
   forwardConeAngle: 55
@@ -3787,6 +3788,22 @@ MonoBehaviour:
   maxConsecutiveSameValue: 2
   consecutiveRepetitionPenalty: 0.35
   consecutiveUpgradeBoost: 1.8
+--- !u!114 &2060327054
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2060327050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d4db5ae621fabd45bae214ea5f2d751, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AnimalSpawner
+  maxAnimals: 15
+  spawnChancePerFloor: 0.6
+  minDistanceBetweenAnimals: 3
+  environmentSettings: []
 --- !u!1 &2108811735
 GameObject:
   m_ObjectHideFlags: 0
