@@ -280,38 +280,114 @@ public class PlayerMovement : MonoBehaviour
     }
 
     /// <summary>
-    /// Approximates a segment's "radius" in the horizontal plane from its
+    /// Approximates a segment's physical radius in the horizontal plane from its
     /// real rendered/collider size (world space, so scale is included).
-    /// Falls back to fallbackSegmentRadius if neither is present.
+    /// Ignores non-physical effect renderers (TrailRenderer, ParticleSystemRenderer)
+    /// and child VFX objects so speed trails/auras never distort segment spacing.
+    /// Falls back to fallbackSegmentRadius if no physical mesh or collider is found.
     /// </summary>
     private float GetSegmentRadius(Transform segment)
     {
-        Renderer[] renderers = segment.GetComponentsInChildren<Renderer>();
+        if (segment == null)
+            return fallbackSegmentRadius;
 
-        if (renderers.Length > 0)
+        // 1. Look for physical MeshRenderers or SkinnedMeshRenderers first
+        MeshRenderer[] meshRenderers = segment.GetComponentsInChildren<MeshRenderer>();
+        if (meshRenderers.Length > 0)
         {
-            Bounds combined = renderers[0].bounds;
+            bool boundsSet = false;
+            Bounds combined = new Bounds();
 
-            for (int i = 1; i < renderers.Length; i++)
+            foreach (var mr in meshRenderers)
             {
-                combined.Encapsulate(renderers[i].bounds);
+                if (mr == null || !mr.enabled)
+                    continue;
+
+                // Skip child VFX, particle, or trail objects
+                string objName = mr.gameObject.name;
+                if (objName.Contains("Trail") || objName.Contains("VFX") || objName.Contains("Effect") || objName.Contains("Particle"))
+                    continue;
+
+                if (!boundsSet)
+                {
+                    combined = mr.bounds;
+                    boundsSet = true;
+                }
+                else
+                {
+                    combined.Encapsulate(mr.bounds);
+                }
             }
 
-            return Mathf.Max(combined.size.x, combined.size.z) * 0.5f;
+            if (boundsSet)
+            {
+                return Mathf.Max(combined.size.x, combined.size.z) * 0.5f;
+            }
         }
 
-        Collider[] colliders = segment.GetComponentsInChildren<Collider>();
-
-        if (colliders.Length > 0)
+        SkinnedMeshRenderer[] skinnedRenderers = segment.GetComponentsInChildren<SkinnedMeshRenderer>();
+        if (skinnedRenderers.Length > 0)
         {
-            Bounds combined = colliders[0].bounds;
+            bool boundsSet = false;
+            Bounds combined = new Bounds();
 
-            for (int i = 1; i < colliders.Length; i++)
+            foreach (var smr in skinnedRenderers)
             {
-                combined.Encapsulate(colliders[i].bounds);
+                if (smr == null || !smr.enabled)
+                    continue;
+
+                string objName = smr.gameObject.name;
+                if (objName.Contains("Trail") || objName.Contains("VFX") || objName.Contains("Effect") || objName.Contains("Particle"))
+                    continue;
+
+                if (!boundsSet)
+                {
+                    combined = smr.bounds;
+                    boundsSet = true;
+                }
+                else
+                {
+                    combined.Encapsulate(smr.bounds);
+                }
             }
 
-            return Mathf.Max(combined.size.x, combined.size.z) * 0.5f;
+            if (boundsSet)
+            {
+                return Mathf.Max(combined.size.x, combined.size.z) * 0.5f;
+            }
+        }
+
+        // 2. Fall back to non-trigger colliders
+        Collider[] colliders = segment.GetComponentsInChildren<Collider>();
+        if (colliders.Length > 0)
+        {
+            bool boundsSet = false;
+            Bounds combined = new Bounds();
+
+            foreach (var col in colliders)
+            {
+                if (col == null || !col.enabled || col.isTrigger)
+                    continue;
+
+                string objName = col.gameObject.name;
+                if (objName.Contains("Trail") || objName.Contains("VFX") || objName.Contains("Effect"))
+                    continue;
+
+                if (!boundsSet)
+                {
+                    combined = col.bounds;
+                    boundsSet = true;
+                }
+                else
+                {
+                    combined.Encapsulate(col.bounds);
+                }
+            }
+
+            if (boundsSet)
+            {
+                return Mathf.Max(combined.size.x, combined.size.z) * 0.5f;
+            }
         }
 
         return fallbackSegmentRadius;
