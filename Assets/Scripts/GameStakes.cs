@@ -1003,10 +1003,26 @@ public class GameStakes : MonoBehaviour
     {
         if (shedButton == null)
         {
-            shedButton = GameObject.Find("Shed");
+            GameObject snakeInfo = GameObject.Find("SnakeInfo");
+            if (snakeInfo != null)
+            {
+                Transform shedTr = snakeInfo.transform.Find("Shed");
+                if (shedTr != null) shedButton = shedTr.gameObject;
+            }
+
+            if (shedButton == null)
+            {
+                shedButton = GameObject.Find("Shed");
+            }
         }
 
         if (shedButton == null) return;
+
+        // Never touch the Rearrange power-up slot under PowerUps
+        if (shedButton.transform.parent != null && shedButton.transform.parent.name == "PowerUps")
+        {
+            return;
+        }
 
         bool inWarning = (currentState == StakeState.Warning);
 

@@ -2358,6 +2358,7 @@ GameObject:
   - component: {fileID: 1295684226}
   - component: {fileID: 1295684227}
   - component: {fileID: 1295684228}
+  - component: {fileID: 1295684229}
   m_Layer: 0
   m_Name: player
   m_TagString: Player
@@ -2556,6 +2557,45 @@ MonoBehaviour:
   mergeSoundVolume: 1
   randomizePitch: 1
   audioSource: {fileID: 0}
+--- !u!114 &1295684229
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1295684224}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 78f44df19f55d764eb60a7b1a610f890, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PowerUpPlayer
+  playerMovement: {fileID: 1295684226}
+  snakeGrow: {fileID: 1295684228}
+  magnetUI:
+    uiObject: {fileID: 710486349}
+    canvasGroup: {fileID: 710486351}
+  rearrangeUI:
+    uiObject: {fileID: 2147213809}
+    canvasGroup: {fileID: 2147213811}
+  speedUI:
+    uiObject: {fileID: 1653498387}
+    canvasGroup: {fileID: 1653498389}
+  idleAlpha: 0.3
+  activeAlpha: 1
+  activeUIScaleMultiplier: 1.3
+  warningTime: 2
+  blinkSpeed: 4
+  minBlinkAlpha: 0.3
+  warningUIPrefab: {fileID: 4337536832225034331, guid: 8fe67c6965f862946a86465a721b786a, type: 3}
+  announcementDuration: 3.2
+  consumeDurationOnlyWhileBoosting: 1
+  speedTransitionRate: 6
+  magnetEffectPrefab: {fileID: 0}
+  speedEffectPrefab: {fileID: 0}
+  magnetSoundClip: {fileID: 0}
+  rearrangeSoundClip: {fileID: 0}
+  speedBoostSoundClip: {fileID: 0}
+  sfxVolume: 1
 --- !u!1 &1484793127
 GameObject:
   m_ObjectHideFlags: 0
@@ -3675,6 +3715,7 @@ GameObject:
   - component: {fileID: 2060327051}
   - component: {fileID: 2060327053}
   - component: {fileID: 2060327054}
+  - component: {fileID: 2060327057}
   m_Layer: 0
   m_Name: environment
   m_TagString: Untagged
@@ -3804,6 +3845,40 @@ MonoBehaviour:
   spawnChancePerFloor: 0.5
   minDistanceBetweenAnimals: 3
   environmentSettings: []
+--- !u!114 &2060327057
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2060327050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6006a870dbba14f4185db19280f4d7be, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PowerUpManager
+  magnetPrefab: {fileID: 1464712588795612372, guid: 29a6f52f23da2cf43b3304dd596cb0c6, type: 3}
+  rearrangePrefab: {fileID: 1464712588795612372, guid: 1b59938d28566a2499b60430aa93e870, type: 3}
+  speedPrefab: {fileID: 1464712588795612372, guid: 4700bbb0b4e3bdf46834f0d7127b4845, type: 3}
+  additionalPrefabs: []
+  maxActivePowerUps: 2
+  initialSpawnDelay: 3
+  spawnInterval: 8
+  replacementDelay: 4
+  player: {fileID: 1295684225}
+  minSpawnDistanceFromPlayer: 4
+  maxSpawnDistanceFromPlayer: 12
+  forwardBiasChance: 0.85
+  forwardConeAngle: 55
+  floorManager: {fileID: 2060327051}
+  floorHeight: 0
+  heightAboveFloor: 0.2
+  floorBoundsSize: {x: 40, y: 0, z: 40}
+  minDistanceBetweenPowerUps: 3
+  minDistanceFromPickups: 1.8
+  maxSpawnAttempts: 35
+  speedGlowColor: {r: 0, g: 0.85, b: 1, a: 1}
+  gameplayCamera: {fileID: 330585545}
 --- !u!1 &2108811735
 GameObject:
   m_ObjectHideFlags: 0

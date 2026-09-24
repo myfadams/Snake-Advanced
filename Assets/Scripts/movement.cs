@@ -25,6 +25,13 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
+
+    /// <summary>Current movement speed of the snake head.</summary>
+    public float MoveSpeed
+    {
+        get => moveSpeed;
+        set => moveSpeed = Mathf.Max(0.1f, value);
+    }
     [Tooltip("How cautiously the snake turns, as a multiple of its own body radius. 1 = turns exactly as tight as physically possible without segments overlapping (maximum responsiveness, zero safety margin). Higher = a little more margin (smoother, slightly slower turns); lower than 1 = snappier but risks a touch of visual overlap on the sharpest turns. The actual turn speed (deg/sec) is derived automatically from this, moveSpeed, and the segments' measured size, so turning stays as fast as possible while remaining safe - even if you resize things later.")]
     [SerializeField] private float turnTightness = 1.5f;
 
@@ -86,6 +93,25 @@ public class PlayerMovement : MonoBehaviour
         gapClosingIndex = removedIndex;
         gapClosingProgress = Mathf.Clamp01(progress);
         gapClosingAmount = gapAmount;
+        MoveBodyAlongPath();
+    }
+
+    // Custom segment distances override used for animated power-up rearrangements
+    private float[] customSegmentDistances;
+
+    /// <summary>Direct read-only access to current body segment transforms in order.</summary>
+    public IReadOnlyList<Transform> BodySegments => bodySegments;
+
+    /// <summary>Direct read-only access to current cumulative arc-length distances from the head.</summary>
+    public IReadOnlyList<float> CumulativeDistances => cumulativeDistances;
+
+    /// <summary>
+    /// Temporarily overrides segment target distances along the path history for animated rearrangements.
+    /// Pass null to restore normal automatic spacing.
+    /// </summary>
+    public void SetCustomSegmentDistances(float[] distances)
+    {
+        customSegmentDistances = distances;
         MoveBodyAlongPath();
     }
 
@@ -404,7 +430,11 @@ public class PlayerMovement : MonoBehaviour
             float standardDist = i < cumulativeDistances.Count ? cumulativeDistances[i] : 0f;
             float targetDistance = standardDist;
 
-            if (insertionProgress < 1f)
+            if (customSegmentDistances != null && i < customSegmentDistances.Length)
+            {
+                targetDistance = customSegmentDistances[i];
+            }
+            else if (insertionProgress < 1f)
             {
                 targetDistance = (i == 0)
                     ? firstSegmentGap * insertionProgress

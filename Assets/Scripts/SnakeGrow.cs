@@ -201,6 +201,15 @@ public class SnakeGrow : MonoBehaviour
     /// </summary>
     public Transform HeadSegment => head;
 
+    /// <summary>Direct read-only access to all snake segments in order (segments[0] is Head).</summary>
+    public IReadOnlyList<Transform> Segments => segments;
+
+    /// <summary>True if growth, merge, or damage coroutine is currently processing.</summary>
+    public bool IsProcessing => isProcessing;
+
+    /// <summary>Set to true while a power-up rearrangement animation is running to pause auto-merges until segments arrive.</summary>
+    public bool IsRearranging { get; set; }
+
     // segments[0] is always the Head; segments[1..] are the body, in the
     // same order as the physical hierarchy under Player.
     private readonly List<Transform> segments = new List<Transform>();
@@ -242,7 +251,7 @@ public class SnakeGrow : MonoBehaviour
     {
         // Continuously check if blocks next to each other in the snake body are the same value,
         // or if there are pending pickups to process, and merge them automatically.
-        if (!isProcessing && gameObject.activeInHierarchy && (pendingPickups.Count > 0 || FindMergeablePairIndex() != -1))
+        if (!isProcessing && !IsRearranging && gameObject.activeInHierarchy && (pendingPickups.Count > 0 || FindMergeablePairIndex() != -1))
         {
             StartCoroutine(ProcessGrowthAndMergesCoroutine());
         }
@@ -1105,6 +1114,30 @@ public class SnakeGrow : MonoBehaviour
         }
 
         playerMovement.SyncBodySegments(bodyList);
+    }
+
+    /// <summary>
+    /// Updates the snake's segment order to match a newly rearranged sequence,
+    /// synchronizes the physical hierarchy and movement chain, and triggers cube count events.
+    /// Used by the Rearrange power-up.
+    /// </summary>
+    public void RearrangeSegments(IReadOnlyList<Transform> newOrder)
+    {
+        if (newOrder == null || newOrder.Count == 0)
+            return;
+
+        segments.Clear();
+        for (int i = 0; i < newOrder.Count; i++)
+        {
+            if (newOrder[i] != null)
+            {
+                segments.Add(newOrder[i]);
+            }
+        }
+
+        UpdateHierarchyOrder();
+        SyncMovement();
+        NotifyCubesChanged();
     }
 
     /// <summary>

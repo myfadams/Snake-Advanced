@@ -56,6 +56,10 @@ public class HeadTierDistribution
 /// </summary>
 public class PickupManager : MonoBehaviour
 {
+    public static PickupManager Instance { get; private set; }
+
+    /// <summary>Active pickups currently spawned in the world.</summary>
+    public IReadOnlyList<Pickup> ActivePickups => activePickups;
     [Header("Prefab")]
     [Tooltip("The Pickup prefab to instantiate.")]
     [SerializeField] private Pickup pickupPrefab;
@@ -71,10 +75,22 @@ public class PickupManager : MonoBehaviour
     public AudioClip EatSoundClip { get => eatSoundClip; set => eatSoundClip = value; }
     public float EatSoundVolume { get => eatSoundVolume; set => eatSoundVolume = value; }
 
+    [Header("Collection Effect (Optional Fallback)")]
+    [Tooltip("Collection / dissolve cube effect prefab to spawn when a pickup is eaten.")]
+    [SerializeField] private GameObject collectionEffectPrefab;
+
+    public GameObject CollectionEffectPrefab { get => collectionEffectPrefab; set => collectionEffectPrefab = value; }
+
     [Header("Player Reference")]
     [Tooltip("The player/snake transform pickups should spawn near. If left empty, " +
              "Floor Bounds Center below is used as a fallback anchor point.")]
     [SerializeField] private Transform player;
+
+    public Transform PlayerTransform => player;
+    public float FloorHeight => floorHeight;
+    public float HeightAboveFloor => heightAboveFloor;
+    public Camera GameplayCamera => gameplayCamera;
+    public Vector3 FloorBoundsSize => floorBoundsSize;
 
     [Header("Pickup Density")]
     [Tooltip("Minimum number of active pickups in the play area. If the count drops below this, spawning prioritizes refilling.")]
@@ -178,6 +194,23 @@ public class PickupManager : MonoBehaviour
 
         minDistanceBetweenPickups = Mathf.Max(minDistanceBetweenPickups, 0.5f);
         maxConsecutiveSameValue = Mathf.Max(maxConsecutiveSameValue, 1);
+    }
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            return;
+        }
+        Instance = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 
     private void Start()
@@ -303,6 +336,11 @@ public class PickupManager : MonoBehaviour
         {
             newPickup.EatSoundClip = eatSoundClip;
             newPickup.EatSoundVolume = eatSoundVolume;
+        }
+
+        if (collectionEffectPrefab != null && newPickup.CollectionEffectPrefab == null)
+        {
+            newPickup.CollectionEffectPrefab = collectionEffectPrefab;
         }
 
         activePickups.Add(newPickup);

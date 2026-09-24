@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -18,13 +18,20 @@ public class SpawnEffect : MonoBehaviour {
     {
         shaderProperty = Shader.PropertyToID("_cutoff");
         _renderer = GetComponent<Renderer>();
-        ps = GetComponentInChildren <ParticleSystem>();
+        ps = GetComponentInChildren<ParticleSystem>();
 
-        var main = ps.main;
-        main.duration = spawnEffectTime;
+        if (ps != null)
+        {
+            if (ps.isPlaying)
+            {
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
 
-        ps.Play();
+            var main = ps.main;
+            main.duration = spawnEffectTime;
 
+            ps.Play();
+        }
     }
 	
 	void Update ()
@@ -35,12 +42,16 @@ public class SpawnEffect : MonoBehaviour {
         }
         else
         {
-            ps.Play();
+            if (ps != null)
+            {
+                ps.Play();
+            }
             timer = 0;
         }
 
-
-        _renderer.material.SetFloat(shaderProperty, fadeIn.Evaluate( Mathf.InverseLerp(0, spawnEffectTime, timer)));
-        
+        if (_renderer != null && _renderer.material != null)
+        {
+            _renderer.material.SetFloat(shaderProperty, fadeIn.Evaluate(Mathf.InverseLerp(0, spawnEffectTime, timer)));
+        }
     }
 }

@@ -82,12 +82,39 @@ public class Pickup : MonoBehaviour
     private SnakeGrow snakeGrow;
 
     public int Value => value;
+    public GameObject CollectionEffectPrefab { get => collectionEffectPrefab; set => collectionEffectPrefab = value; }
+
+    private GameObject dissolveObject;
 
     private void Awake()
     {
         if (bodyRenderer == null)
         {
             bodyRenderer = GetComponentInChildren<Renderer>();
+        }
+
+        // Auto-detect Dissolve effect object (keep INACTIVE while spawned in world so it only plays when eaten)
+        Transform dissolveTr = transform.Find("DissolveSolidHorizontal") ?? transform.Find("Dissolve");
+        if (dissolveTr != null)
+        {
+            dissolveObject = dissolveTr.gameObject;
+        }
+        else
+        {
+            Renderer[] allRenderers = GetComponentsInChildren<Renderer>(true);
+            foreach (Renderer r in allRenderers)
+            {
+                if (r != null && r.name.ToLowerInvariant().Contains("dissolve"))
+                {
+                    dissolveObject = r.gameObject;
+                    break;
+                }
+            }
+        }
+
+        if (dissolveObject != null)
+        {
+            dissolveObject.SetActive(false);
         }
 
         Collider col = GetComponent<Collider>();
@@ -239,6 +266,12 @@ public class Pickup : MonoBehaviour
 
         SpawnCollectionEffect();
 
+        // Hide visuals immediately so dissolve effect takes over seamlessly
+        if (bodyRenderer != null) bodyRenderer.enabled = false;
+        if (valueText != null) valueText.enabled = false;
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+
         // -------------------------------------------------------------------------
         // PREVIOUS SOUND CODE (FLAWED):
         // AudioSource eatSound = gameObject.GetComponent<AudioSource>();
@@ -268,15 +301,36 @@ public class Pickup : MonoBehaviour
     /// </summary>
     private void SpawnCollectionEffect()
     {
-        if (collectionEffectPrefab == null)
+        Renderer targetRenderer = bodyRenderer != null ? bodyRenderer : GetComponent<Renderer>();
+        Vector3 spawnPos = targetRenderer != null ? targetRenderer.bounds.center : transform.position;
+        Quaternion spawnRot = targetRenderer != null ? targetRenderer.transform.rotation : transform.rotation;
+
+        GameObject effectToSpawn = dissolveObject != null ? dissolveObject : collectionEffectPrefab;
+        if (effectToSpawn == null) return;
+
+        GameObject effect = Instantiate(effectToSpawn, spawnPos, spawnRot);
+        effect.SetActive(true);
+
+        PowerUp.ScaleEffectToMatchRenderer(effect, targetRenderer, transform.lossyScale);
+        ApplyBlockColorToEffect(effect);
+
+        float effectDuration = 3.0f;
+        SpawnEffect spawnEff = effect.GetComponent<SpawnEffect>();
+        if (spawnEff != null)
         {
-            return;
+            spawnEff.enabled = true;
+            if (spawnEff.spawnEffectTime > 3.0f)
+            {
+                spawnEff.spawnEffectTime = 2.5f;
+            }
+            effectDuration = spawnEff.spawnEffectTime + 0.5f;
+        }
+        else
+        {
+            effectDuration = GetEffectLifetime(effect);
         }
 
-        GameObject effect = Instantiate(collectionEffectPrefab, transform.position, transform.rotation);
-        ApplyBlockColorToEffect(effect);
-        // GetEffectLifetime(effect)
-        Destroy(effect, 4f);
+        Destroy(effect, effectDuration);
     }
 
     /// <summary>
@@ -287,18 +341,47 @@ public class Pickup : MonoBehaviour
     /// </summary>
     private void ApplyBlockColorToEffect(GameObject effect)
     {
-        if (GameManager.Instance == null)
+        if (GameManager.Instance == null || effect == null)
         {
             return;
         }
 
         Color color = GameManager.Instance.GetBlockColor(value);
-        ParticleSystem[] systems = effect.GetComponentsInChildren<ParticleSystem>();
+        bool hasSpawnEffect = effect.GetComponent<SpawnEffect>() != null || effect.GetComponentInChildren<SpawnEffect>() != null;
+
+        ParticleSystem[] systems = effect.GetComponentsInChildren<ParticleSystem>(true);
 
         foreach (ParticleSystem ps in systems)
         {
             ParticleSystem.MainModule main = ps.main;
             main.startColor = new ParticleSystem.MinMaxGradient(color);
+            if (!hasSpawnEffect)
+            {
+                ps.Play();
+            }
+        }
+
+        Renderer[] renderers = effect.GetComponentsInChildren<Renderer>(true);
+        foreach (Renderer r in renderers)
+        {
+            if (r is ParticleSystemRenderer) continue;
+            if (r.material != null)
+            {
+                if (r.material.HasProperty("_Color")) r.material.SetColor("_Color", color);
+                if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", color);
+                if (r.material.HasProperty("_EmissionColor")) r.material.SetColor("_EmissionColor", color * 1.5f);
+                if (r.material.HasProperty("_Color_Glow")) r.material.SetColor("_Color_Glow", color * 2.2f);
+                if (r.material.HasProperty("_ColorEdge")) r.material.SetColor("_ColorEdge", color * 2.2f);
+                if (r.material.HasProperty("_Coloredges")) r.material.SetColor("_Coloredges", color * 2.2f);
+                if (r.material.HasProperty("_Edge_Color")) r.material.SetColor("_Edge_Color", color * 2.2f);
+                if (r.material.HasProperty("_Main_Color")) r.material.SetColor("_Main_Color", color);
+            }
+        }
+
+        MonoBehaviour spawnEff = effect.GetComponent("SpawnEffect") as MonoBehaviour;
+        if (spawnEff != null)
+        {
+            spawnEff.enabled = true;
         }
     }
 
