@@ -314,15 +314,13 @@ public class Pickup : MonoBehaviour
         PowerUp.ScaleEffectToMatchRenderer(effect, targetRenderer, transform.lossyScale);
         ApplyBlockColorToEffect(effect);
 
-        float effectDuration = 3.0f;
-        SpawnEffect spawnEff = effect.GetComponent<SpawnEffect>();
+        float effectDuration = 2.2f;
+        SpawnEffect spawnEff = effect.GetComponentInChildren<SpawnEffect>();
         if (spawnEff != null)
         {
             spawnEff.enabled = true;
-            if (spawnEff.spawnEffectTime > 3.0f)
-            {
-                spawnEff.spawnEffectTime = 2.5f;
-            }
+            spawnEff.spawnEffectTime = 1.6f;
+            spawnEff.ResetEffect();
             effectDuration = spawnEff.spawnEffectTime + 0.5f;
         }
         else
@@ -367,6 +365,8 @@ public class Pickup : MonoBehaviour
             if (r is ParticleSystemRenderer) continue;
             if (r.material != null)
             {
+                if (r.material.HasProperty("_Cutoff")) r.material.SetFloat("_Cutoff", 0f);
+                if (r.material.HasProperty("_cutoff")) r.material.SetFloat("_cutoff", 0f);
                 if (r.material.HasProperty("_Color")) r.material.SetColor("_Color", color);
                 if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", color);
                 if (r.material.HasProperty("_EmissionColor")) r.material.SetColor("_EmissionColor", color * 1.5f);

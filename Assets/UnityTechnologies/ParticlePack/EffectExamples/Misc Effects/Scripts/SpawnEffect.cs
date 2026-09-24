@@ -2,24 +2,42 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SpawnEffect : MonoBehaviour {
+public class SpawnEffect : MonoBehaviour
+{
+    [Tooltip("Total duration in seconds of the dissolve animation from solid to fully vanished.")]
+    public float spawnEffectTime = 1.6f;
 
-    public float spawnEffectTime = 2;
-    public float pause = 1;
-    public AnimationCurve fadeIn;
+    [Tooltip("Pause delay before looping (not used for one-shot collection dissolves).")]
+    public float pause = 1f;
 
-    ParticleSystem ps;
-    float timer = 0;
-    Renderer _renderer;
+    [Tooltip("Animation curve controlling the dissolve progression (0 = solid at start, 1 = vanished at end).")]
+    public AnimationCurve fadeIn = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
-    int shaderProperty;
+    private float timer = 0f;
+    private Renderer _renderer;
+    private Material _mat;
+    private ParticleSystem ps;
+    private bool isDone = false;
 
-	void Start ()
+    private static readonly int CutoffID = Shader.PropertyToID("_Cutoff");
+    private static readonly int CutoffLowerID = Shader.PropertyToID("_cutoff");
+
+    private void Awake()
     {
-        shaderProperty = Shader.PropertyToID("_cutoff");
-        _renderer = GetComponent<Renderer>();
-        ps = GetComponentInChildren<ParticleSystem>();
+        InitializeMaterial();
+        SetCutoff(0f);
+    }
 
+    private void Start()
+    {
+        timer = 0f;
+        isDone = false;
+
+        InitializeMaterial();
+        SetCutoff(0f);
+
+        // Configure and start child particle systems
+        ps = GetComponentInChildren<ParticleSystem>();
         if (ps != null)
         {
             if (ps.isPlaying)
@@ -33,25 +51,56 @@ public class SpawnEffect : MonoBehaviour {
             ps.Play();
         }
     }
-	
-	void Update ()
-    {
-        if (timer < spawnEffectTime + pause)
-        {
-            timer += Time.deltaTime;
-        }
-        else
-        {
-            if (ps != null)
-            {
-                ps.Play();
-            }
-            timer = 0;
-        }
 
-        if (_renderer != null && _renderer.material != null)
+    private void Update()
+    {
+        if (isDone) return;
+
+        timer += Time.deltaTime;
+        float progress = Mathf.Clamp01(timer / Mathf.Max(spawnEffectTime, 0.01f));
+        float cutoff = fadeIn != null ? Mathf.Clamp01(fadeIn.Evaluate(progress)) : progress;
+
+        SetCutoff(cutoff);
+
+        if (timer >= spawnEffectTime)
         {
-            _renderer.material.SetFloat(shaderProperty, fadeIn.Evaluate(Mathf.InverseLerp(0, spawnEffectTime, timer)));
+            isDone = true;
+            SetCutoff(1f);
         }
     }
+
+    private void InitializeMaterial()
+    {
+        if (_renderer == null)
+        {
+            _renderer = GetComponent<Renderer>();
+        }
+
+        if (_mat == null && _renderer != null)
+        {
+            _mat = _renderer.material;
+        }
+    }
+
+    public void SetCutoff(float cutoff)
+    {
+        if (_mat == null)
+        {
+            InitializeMaterial();
+        }
+
+        if (_mat != null)
+        {
+            _mat.SetFloat(CutoffID, cutoff);
+            _mat.SetFloat(CutoffLowerID, cutoff);
+        }
+    }
+
+    public void ResetEffect()
+    {
+        timer = 0f;
+        isDone = false;
+        SetCutoff(0f);
+    }
 }
+

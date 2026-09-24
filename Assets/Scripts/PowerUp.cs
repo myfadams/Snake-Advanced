@@ -520,15 +520,13 @@ public class PowerUp : MonoBehaviour
         ApplyColorToEffect(effect);
 
         // Trigger SpawnEffect dissolve animation and schedule cleanup
-        float effectDuration = 3.0f;
-        SpawnEffect spawnEff = effect.GetComponent<SpawnEffect>();
+        float effectDuration = 2.2f;
+        SpawnEffect spawnEff = effect.GetComponentInChildren<SpawnEffect>();
         if (spawnEff != null)
         {
             spawnEff.enabled = true;
-            if (spawnEff.spawnEffectTime > 3.0f)
-            {
-                spawnEff.spawnEffectTime = 2.5f;
-            }
+            spawnEff.spawnEffectTime = 1.6f;
+            spawnEff.ResetEffect();
             effectDuration = spawnEff.spawnEffectTime + 0.5f;
         }
 
@@ -558,6 +556,8 @@ public class PowerUp : MonoBehaviour
             if (r is ParticleSystemRenderer) continue;
             if (r.material != null)
             {
+                if (r.material.HasProperty("_Cutoff")) r.material.SetFloat("_Cutoff", 0f);
+                if (r.material.HasProperty("_cutoff")) r.material.SetFloat("_cutoff", 0f);
                 if (r.material.HasProperty("_Color")) r.material.SetColor("_Color", currentGlowColor);
                 if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", currentGlowColor);
                 if (r.material.HasProperty("_EmissionColor")) r.material.SetColor("_EmissionColor", currentGlowColor * 1.5f);
