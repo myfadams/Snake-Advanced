@@ -132,7 +132,7 @@ MonoBehaviour:
   hoverHeight: 0.045
   hoverSpeed: 2
   rotationSpeed: 90
-  collectionEffectPrefab: {fileID: 3281665843732006339, guid: d2271ed52f2537a46aad6261e5855bb3, type: 3}
+  collectionEffectPrefab: {fileID: 8594448520171598934, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
   collectionEffectFallbackDuration: 2
   eatSoundClip: {fileID: 8300000, guid: 3b8d6c7928cc24649aa2ad8e2d619c35, type: 3}
   eatSoundVolume: 1
