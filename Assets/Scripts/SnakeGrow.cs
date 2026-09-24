@@ -417,6 +417,7 @@ public class SnakeGrow : MonoBehaviour
         if (playerMovement != null)
         {
             playerMovement.SetInsertionProgress(1f);
+            playerMovement.RefreshBodySegments();
         }
     }
 

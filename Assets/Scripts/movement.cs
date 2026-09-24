@@ -132,6 +132,8 @@ public class PlayerMovement : MonoBehaviour
     }
 
     private Rigidbody rb;
+    private float groundY;
+    private bool groundYInitialized = false;
 
     private void Awake()
     {
@@ -146,6 +148,16 @@ public class PlayerMovement : MonoBehaviour
 
     private void Start()
     {
+        if (head != null)
+        {
+            groundY = head.position.y;
+            groundYInitialized = true;
+        }
+        else
+        {
+            groundY = transform.position.y;
+            groundYInitialized = true;
+        }
         RefreshBodySegments();
     }
 
@@ -346,24 +358,53 @@ public class PlayerMovement : MonoBehaviour
         // The head leads: the whole snake advances along whatever
         // direction the head currently faces.
         transform.position += head.forward * moveSpeed * Time.deltaTime;
+
+        // Keep head height firmly grounded to prevent physics collisions with objects
+        // from displacing the player into or under the floor.
+        if (groundYInitialized && head != null)
+        {
+            float currentY = head.position.y;
+            if (Mathf.Abs(currentY - groundY) > 0.001f)
+            {
+                Vector3 pos = transform.position;
+                pos.y += (groundY - currentY);
+                transform.position = pos;
+            }
+        }
     }
 
     private void RecordHistoryPoint()
     {
+        if (head == null)
+            return;
+
+        Vector3 currentHeadPos = head.position;
+        if (groundYInitialized)
+        {
+            currentHeadPos.y = groundY;
+        }
+
         if (pathHistory.Count == 0)
         {
-            pathHistory.Add(head.position);
+            pathHistory.Add(currentHeadPos);
             return;
         }
 
-        float distanceFromLastPoint = Vector3.Distance(
-            head.position,
-            pathHistory[pathHistory.Count - 1]
-        );
+        Vector3 lastPoint = pathHistory[pathHistory.Count - 1];
+        float dist = Vector3.Distance(currentHeadPos, lastPoint);
 
-        if (distanceFromLastPoint >= historyPointSpacing)
+        // Subdivide large movement jumps during high-speed movement (boost)
+        // so history points are always spaced evenly by historyPointSpacing.
+        while (dist >= historyPointSpacing)
         {
-            pathHistory.Add(head.position);
+            Vector3 nextPoint = Vector3.MoveTowards(lastPoint, currentHeadPos, historyPointSpacing);
+            pathHistory.Add(nextPoint);
+            lastPoint = nextPoint;
+            dist = Vector3.Distance(currentHeadPos, lastPoint);
+        }
+
+        if (pathHistory.Count > 0)
+        {
             TrimHistory();
         }
     }
@@ -404,11 +445,14 @@ public class PlayerMovement : MonoBehaviour
         Vector3 backwards = -head.forward;
         int pointsNeeded = Mathf.CeilToInt(requiredHistoryLength / historyPointSpacing) + 1;
 
+        Vector3 headPos = head.position;
+        if (groundYInitialized) headPos.y = groundY;
+
         // Oldest first, newest (closest to the head) last - this lays
         // the body out in a straight line behind the head at start.
         for (int i = pointsNeeded; i >= 1; i--)
         {
-            pathHistory.Add(head.position + backwards * (historyPointSpacing * i));
+            pathHistory.Add(headPos + backwards * (historyPointSpacing * i));
         }
     }
 
@@ -447,7 +491,7 @@ public class PlayerMovement : MonoBehaviour
             }
 
             Vector3 targetPosition = GetPointAtDistance(targetDistance);
-            targetPosition.y = segment.position.y;
+            targetPosition.y = groundYInitialized ? groundY : segment.position.y;
 
             // Face the point ahead of this segment on the path (the head,
             // or the previous segment) - never the mouse directly.
@@ -467,6 +511,8 @@ public class PlayerMovement : MonoBehaviour
     public Vector3 GetPointAtDistance(float distance)
     {
         Vector3 previousPoint = head.position;
+        if (groundYInitialized) previousPoint.y = groundY;
+
         float distanceCovered = 0f;
 
         for (int i = pathHistory.Count - 1; i >= 0; i--)
