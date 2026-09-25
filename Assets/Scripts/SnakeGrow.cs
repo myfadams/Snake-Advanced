@@ -213,6 +213,9 @@ public class SnakeGrow : MonoBehaviour
     /// </summary>
     public Transform HeadSegment => head;
 
+    /// <summary>Direct reference to the body prefab asset used for snake growth.</summary>
+    public GameObject BodyPrefab => bodyPrefab;
+
     /// <summary>Direct read-only access to all snake segments in order (segments[0] is Head).</summary>
     public IReadOnlyList<Transform> Segments => segments;
 
@@ -531,6 +534,165 @@ public class SnakeGrow : MonoBehaviour
 
     /// <summary>Returns true if the snake is currently playing its death dissolve animation.</summary>
     public bool IsDying => isDying;
+
+    /// <summary>
+    /// Promotes the next body segment (segments[1]) to become the new Head of the player
+    /// when the current head is consumed by a higher-value enemy.
+    /// Returns true if player survived with a new head, false if no cubes remain (Game Over).
+    /// </summary>
+    public bool PromoteNewHead(int consumedHeadValue)
+    {
+        if (segments == null || segments.Count <= 1)
+        {
+            Debug.Log("[SnakeGrow] Head consumed and no remaining body segments -> Triggering Game Over!");
+            TriggerDeathOrGameOver();
+            return false;
+        }
+
+        Transform oldHead = head;
+        Transform newHead = segments[1];
+
+        Debug.Log($"[SnakeGrow] Head consumed! Promoting segment '{newHead.name}' to become new Head.");
+
+        // 1. Unparent old head so it can dissolve independently
+        if (oldHead != null)
+        {
+            oldHead.SetParent(null);
+            AnimateSegmentDissolveAndDestroyObject(oldHead.gameObject, 0.6f);
+        }
+
+        // 2. Remove old head from segments list
+        segments.RemoveAt(0);
+
+        // 3. Update head reference
+        head = newHead;
+        if (head != null)
+        {
+            head.tag = "SnakeHead";
+        }
+
+        // 4. Ensure new head has body component
+        if (head != null && head.GetComponent<body>() == null)
+        {
+            head.gameObject.AddComponent<body>();
+        }
+
+        // 5. Update PlayerMovement
+        if (playerMovement != null)
+        {
+            playerMovement.SetHead(newHead);
+        }
+
+        UpdateHierarchyOrder();
+        NotifyCubesChanged();
+
+        return true;
+    }
+
+    /// <summary>
+    /// Plays the dissolve particle/shader animation on a target segment or game object and destroys it.
+    /// </summary>
+    public static void AnimateSegmentDissolveAndDestroyObject(GameObject targetObj, float duration = 0.6f)
+    {
+        if (targetObj == null) return;
+
+        if (Instance != null)
+        {
+            Instance.StartCoroutine(DoSegmentDissolve(targetObj, duration));
+        }
+        else
+        {
+            Destroy(targetObj, duration);
+        }
+    }
+
+    private static IEnumerator DoSegmentDissolve(GameObject targetObj, float duration)
+    {
+        if (targetObj == null) yield break;
+
+        // Disable colliders immediately to prevent double hits
+        Collider[] cols = targetObj.GetComponentsInChildren<Collider>();
+        foreach (var c in cols) if (c != null) c.enabled = false;
+
+        // Activate child dissolve objects
+        Transform[] children = targetObj.GetComponentsInChildren<Transform>(true);
+        foreach (Transform child in children)
+        {
+            if (child == null || child == targetObj.transform) continue;
+            string nameLower = child.name.ToLowerInvariant();
+            if (nameLower.Contains("dissolve") || nameLower.Contains("vfx") || nameLower.Contains("effect"))
+            {
+                child.gameObject.SetActive(true);
+                ParticleSystem[] psArray = child.GetComponentsInChildren<ParticleSystem>(true);
+                foreach (var ps in psArray)
+                {
+                    if (ps != null)
+                    {
+                        if (ps.isPlaying) ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                        var main = ps.main;
+                        main.duration = duration;
+                        ps.Play();
+                    }
+                }
+            }
+        }
+
+        Renderer[] rends = targetObj.GetComponentsInChildren<Renderer>(true);
+        List<Material> dynamicMats = new List<Material>();
+        foreach (var rend in rends)
+        {
+            if (rend == null || !rend.enabled || rend is ParticleSystemRenderer) continue;
+            foreach (var m in rend.materials)
+            {
+                if (m != null && !dynamicMats.Contains(m)) dynamicMats.Add(m);
+            }
+        }
+
+        TMP_Text[] tmproTexts = targetObj.GetComponentsInChildren<TMP_Text>(true);
+
+        int cutoffID = Shader.PropertyToID("_Cutoff");
+        int cutoffLowerID = Shader.PropertyToID("_cutoff");
+        int dissolveID = Shader.PropertyToID("_Dissolve");
+
+        Vector3 initialScale = targetObj.transform.localScale;
+
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            yield return null;
+            if (targetObj == null) yield break;
+
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+
+            foreach (Material m in dynamicMats)
+            {
+                if (m == null) continue;
+                if (m.HasProperty(cutoffID)) m.SetFloat(cutoffID, progress);
+                if (m.HasProperty(cutoffLowerID)) m.SetFloat(cutoffLowerID, progress);
+                if (m.HasProperty(dissolveID)) m.SetFloat(dissolveID, progress);
+            }
+
+            foreach (TMP_Text txt in tmproTexts)
+            {
+                if (txt == null) continue;
+                Color c = txt.color;
+                c.a = Mathf.Lerp(1f, 0f, progress);
+                txt.color = c;
+            }
+
+            if (progress > 0.4f)
+            {
+                float shrinkT = (progress - 0.4f) / 0.6f;
+                targetObj.transform.localScale = Vector3.Lerp(initialScale, Vector3.zero, Mathf.SmoothStep(0f, 1f, shrinkT));
+            }
+        }
+
+        if (targetObj != null)
+        {
+            Destroy(targetObj);
+        }
+    }
 
     /// <summary>
     /// Triggers the death / game over condition, playing the dissolve effect across all head and body segments
@@ -1041,6 +1203,8 @@ public class SnakeGrow : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
+        if (collision == null || collision.gameObject == null) return;
+
         if (collision.gameObject.GetComponent<Hazard>() != null || collision.gameObject.tag == "Hazard")
         {
             // Identify which child collider on the snake was hit
@@ -1052,6 +1216,24 @@ public class SnakeGrow : MonoBehaviour
                     TakeBodyDamage(hitCollider.transform);
                 }
             }
+            return;
+        }
+
+        EnemiesLogic enemy = collision.gameObject.GetComponentInParent<EnemiesLogic>();
+        if (enemy != null)
+        {
+            enemy.HandleCombatCollision(collision);
+        }
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        if (collision == null || collision.gameObject == null) return;
+
+        EnemiesLogic enemy = collision.gameObject.GetComponentInParent<EnemiesLogic>();
+        if (enemy != null)
+        {
+            enemy.HandleCombatCollision(collision);
         }
     }
 
@@ -1245,6 +1427,7 @@ public class SnakeGrow : MonoBehaviour
 
         if (head != null)
         {
+            head.tag = "SnakeHead";
             segments.Add(head);
         }
 
@@ -1252,6 +1435,7 @@ public class SnakeGrow : MonoBehaviour
         {
             if (child != head)
             {
+                child.tag = "SnakeBody";
                 segments.Add(child);
             }
         }
@@ -1281,6 +1465,7 @@ public class SnakeGrow : MonoBehaviour
 
         GameObject instance = Instantiate(bodyPrefab, spawnPosition, spawnRotation, transform);
         instance.name = bodyPrefab.name;
+        instance.tag = "SnakeBody";
         Transform newSegment = instance.transform;
 
         body newBody = newSegment.GetComponent<body>();

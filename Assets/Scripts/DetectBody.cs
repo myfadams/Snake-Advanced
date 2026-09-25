@@ -36,7 +36,13 @@ public class DetectBody : MonoBehaviour
     {
         if (other == null) return;
 
-        // Check if the collided object is a body block or tagged SnakeBody
+        // Ignore enemy objects entirely - DetectBody is strictly for snake self-collision
+        if (other.CompareTag("SnakeEnemyHead") || other.CompareTag("SnakeEnemyBody") || other.GetComponentInParent<EnemiesLogic>() != null)
+        {
+            return;
+        }
+
+        // Check if the collided object is a player body block
         bool isBody = other.CompareTag("SnakeBody") || other.GetComponent<body>() != null;
         if (!isBody) return;
 

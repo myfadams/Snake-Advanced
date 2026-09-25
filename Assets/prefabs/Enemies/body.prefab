@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 1447893135323037987}
   m_Layer: 0
   m_Name: body
-  m_TagString: SnakeBody
+  m_TagString: SnakeEnemyBody
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -34,7 +34,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5701566600870806743}
-  - {fileID: 7371138311563603789}
+  - {fileID: 6761792278468204515}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &5988448713197641466
@@ -401,7 +401,7 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!1001 &3877424862844602224
+--- !u!1001 &1031988571911241694
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -411,27 +411,27 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 6018192713031854141, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.99786484
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6018192713031854141, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
       propertyPath: m_LocalScale.y
-      value: 1.0004
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6018192713031854141, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
       propertyPath: m_LocalScale.z
-      value: 1.0252252
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6018192713031854141, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0.002
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6018192713031854141, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.0002
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6018192713031854141, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -0.0058
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6018192713031854141, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
       propertyPath: m_LocalRotation.w
@@ -465,13 +465,17 @@ PrefabInstance:
       propertyPath: m_Name
       value: Dissolve
       objectReference: {fileID: 0}
+    - target: {fileID: 8594448520171598934, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
---- !u!4 &7371138311563603789 stripped
+--- !u!4 &6761792278468204515 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 6018192713031854141, guid: fb8e4eb402905f6439254e120a8d53c7, type: 3}
-  m_PrefabInstance: {fileID: 3877424862844602224}
+  m_PrefabInstance: {fileID: 1031988571911241694}
   m_PrefabAsset: {fileID: 0}

@@ -9,6 +9,8 @@ TagManager:
   - SnakeBody
   - SnakeHead
   - SnakeEnemy
+  - SnakeEnemyHead
+  - SnakeEnemyBody
   layers:
   - Default
   - TransparentFX

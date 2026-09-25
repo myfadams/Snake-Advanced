@@ -23,6 +23,20 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>The current head Transform, exposed so companion systems (e.g. a growth/merge manager) can reference it without a duplicate Inspector assignment.</summary>
     public Transform Head => head;
 
+    /// <summary>
+    /// Updates the Head transform reference when a head promotion occurs,
+    /// re-indexing body segments and refreshing path history seamlessly.
+    /// </summary>
+    public void SetHead(Transform newHead)
+    {
+        head = newHead;
+        if (head != null)
+        {
+            groundY = head.position.y;
+        }
+        RefreshBodySegments();
+    }
+
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
 
