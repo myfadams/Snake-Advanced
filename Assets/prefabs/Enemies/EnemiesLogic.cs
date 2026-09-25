@@ -46,7 +46,20 @@ public class EnemiesLogic : MonoBehaviour
     [Tooltip("Min and max seconds to roam for pickups during single-cube idle.")]
     [SerializeField] private Vector2 roamDurationRange = new Vector2(4f, 8f);
 
+    [Header("Off-Screen Despawn")]
+    [Tooltip("If enabled, despawns this enemy if it stays continuously out of camera view for maxTimeOutOfView seconds.")]
+    [SerializeField] private bool despawnWhenOutOfView = true;
+
+    [Tooltip("Seconds the enemy can stay continuously outside camera view before despawning.")]
+    [SerializeField] private float maxTimeOutOfView = 7f;
+
+    [Tooltip("Camera used to check visibility. If left empty, uses Camera.main.")]
+    [SerializeField] private Camera gameplayCamera;
+
     [Header("Body & Growth")]
+    [Tooltip("Maximum allowed cubes for this enemy (head + body segments). When reached, the enemy stops seeking pickups and roams freely.")]
+    [SerializeField] private int maxCubes = 5;
+
     [Tooltip("Body segment prefab to instantiate when enemy grows. If unassigned, will load from Resources/Prefabs.")]
     [SerializeField] private GameObject bodyPrefab;
 
@@ -86,6 +99,7 @@ public class EnemiesLogic : MonoBehaviour
     // Single-cube idle sub-state
     private bool isPickupPassive = true;
     private float idleTimer = 0f;
+    private float timeOutOfView = 0f;
     private Vector3 spawnPosition;
     private EnemyRadiusDetection radiusDetection;
 
@@ -106,8 +120,25 @@ public class EnemiesLogic : MonoBehaviour
     }
 
     public int TotalCubeCount => 1 + bodySegments.Count;
+    public int MaxCubes => maxCubes;
+    public bool IsAtMaxCubes => TotalCubeCount >= maxCubes;
     public Transform Head => head;
     public IReadOnlyList<Transform> BodySegments => bodySegments;
+
+    public Vector2 PassiveDurationRange { get => passiveDurationRange; set => passiveDurationRange = value; }
+    public Vector2 RoamDurationRange { get => roamDurationRange; set => roamDurationRange = value; }
+    public bool DespawnWhenOutOfView { get => despawnWhenOutOfView; set => despawnWhenOutOfView = value; }
+    public float MaxTimeOutOfView { get => maxTimeOutOfView; set => maxTimeOutOfView = value; }
+    public Camera GameplayCamera { get => gameplayCamera; set => gameplayCamera = value; }
+
+    public void SetDurations(Vector2 passiveRange, Vector2 roamRange)
+    {
+        passiveDurationRange = passiveRange;
+        roamDurationRange = roamRange;
+        idleTimer = isPickupPassive
+            ? Random.Range(passiveDurationRange.x, passiveDurationRange.y)
+            : Random.Range(roamDurationRange.x, roamDurationRange.y);
+    }
 
     private void Awake()
     {
@@ -153,6 +184,43 @@ public class EnemiesLogic : MonoBehaviour
         }
         rb.isKinematic = true;
         rb.useGravity = false;
+    }
+
+    /// <summary>
+    /// Initializes this enemy's head value, durations, camera, and updates visuals.
+    /// Called by EnemyManager upon spawning.
+    /// </summary>
+    public void Initialize(int headValue, Vector2? customPassiveRange = null, Vector2? customRoamRange = null, Camera cam = null, float? customMaxTimeOutOfView = null)
+    {
+        ResolveHeadAndComponents();
+        if (head != null)
+        {
+            spawnPosition = head.position;
+
+            body b = head.GetComponent<body>();
+            if (b == null)
+            {
+                b = head.gameObject.AddComponent<body>();
+            }
+            b.SetValue(headValue);
+        }
+
+        if (customPassiveRange.HasValue && customRoamRange.HasValue)
+        {
+            SetDurations(customPassiveRange.Value, customRoamRange.Value);
+        }
+
+        if (cam != null)
+        {
+            gameplayCamera = cam;
+        }
+
+        if (customMaxTimeOutOfView.HasValue)
+        {
+            maxTimeOutOfView = customMaxTimeOutOfView.Value;
+        }
+
+        LocatePlayer();
     }
 
     /// <summary>
@@ -265,6 +333,55 @@ public class EnemiesLogic : MonoBehaviour
         UpdatePursuitState();
         ExecuteBehavior();
         RecordHistoryAndMoveBody();
+        HandleOutOfViewDespawn();
+    }
+
+    /// <summary>
+    /// Tracks continuous time spent outside the camera viewport.
+    /// If off-screen continuously for maxTimeOutOfView seconds, despawns the enemy cleanly.
+    /// Resets the instant the enemy re-enters view, engages in pursuit, or approaches the player.
+    /// </summary>
+    private void HandleOutOfViewDespawn()
+    {
+        if (!despawnWhenOutOfView) return;
+
+        // Never despawn if actively chasing the player!
+        if (isChasingPlayer)
+        {
+            timeOutOfView = 0f;
+            return;
+        }
+
+        // Never despawn if close to the player
+        if (playerTransform != null && Vector3.Distance(head.position, playerTransform.position) <= detectionRadius + 3f)
+        {
+            timeOutOfView = 0f;
+            return;
+        }
+
+        Camera cam = gameplayCamera != null ? gameplayCamera : Camera.main;
+        if (cam == null) return;
+
+        if (IsPointVisibleToCamera(head.position, cam))
+        {
+            timeOutOfView = 0f;
+            return;
+        }
+
+        timeOutOfView += Time.deltaTime;
+        if (timeOutOfView >= maxTimeOutOfView)
+        {
+            // Clean silent despawn when staying off-screen too long
+            Destroy(gameObject);
+        }
+    }
+
+    private bool IsPointVisibleToCamera(Vector3 point, Camera cam)
+    {
+        Vector3 viewportPoint = cam.WorldToViewportPoint(point);
+        return viewportPoint.z > 0f
+            && viewportPoint.x >= 0f && viewportPoint.x <= 1f
+            && viewportPoint.y >= 0f && viewportPoint.y <= 1f;
     }
 
     /// <summary>
@@ -370,9 +487,14 @@ public class EnemiesLogic : MonoBehaviour
                     RoamForPickups();
                 }
             }
+            else if (TotalCubeCount >= maxCubes)
+            {
+                // At 5 cubes (max capacity), stop searching for pickups and just roam
+                RoamFreely();
+            }
             else
             {
-                // Multi-Cube Idle Behavior: Move around normally and look for pickups
+                // Multi-Cube Idle Behavior (< 5 cubes): Move around normally and look for pickups
                 RoamForPickups();
             }
         }
@@ -380,6 +502,12 @@ public class EnemiesLogic : MonoBehaviour
 
     private void RoamForPickups()
     {
+        if (TotalCubeCount >= maxCubes)
+        {
+            RoamFreely();
+            return;
+        }
+
         Pickup nearestPickup = FindNearestPickup();
         if (nearestPickup != null)
         {
@@ -395,10 +523,21 @@ public class EnemiesLogic : MonoBehaviour
         }
         else
         {
-            // Move forward and wander gently, applying raycast obstacle avoidance
-            Vector3 targetPos = head.position + head.forward * 3f + head.right * Mathf.Sin(Time.time * 0.8f) * 1.5f;
-            MoveAndSteerToward(targetPos);
+            RoamFreely();
         }
+    }
+
+    /// <summary>
+    /// Roams peacefully across the arena without seeking pickups, applying natural meandering
+    /// and raycast-based obstacle avoidance (walls, rocks, trees, bushes, hazards).
+    /// </summary>
+    private void RoamFreely()
+    {
+        // Organic meandering path using Perlin noise offset per instance + gentle serpentine motion
+        float wanderTurn = (Mathf.PerlinNoise(GetInstanceID() * 0.1f + 17.5f, Time.time * 0.25f) - 0.5f) * 2f;
+        Vector3 roamForward = Quaternion.Euler(0f, wanderTurn * 40f, 0f) * head.forward;
+        Vector3 targetPos = head.position + roamForward * 3f + head.right * Mathf.Sin(Time.time * 1.0f) * 1.2f;
+        MoveAndSteerToward(targetPos);
     }
 
     private void MoveAndSteerToward(Vector3 targetWorldPos)
@@ -597,9 +736,15 @@ public class EnemiesLogic : MonoBehaviour
     /// <summary>
     /// Adds a new body segment of specified value to the enemy.
     /// Immediately disables single-cube pickup behavior and triggers body merge checks.
+    /// Enforces max cube capacity (cannot grow beyond maxCubes).
     /// </summary>
     public void EnemyGrow(int value)
     {
+        if (TotalCubeCount >= maxCubes)
+        {
+            return;
+        }
+
         if (bodyPrefab == null)
         {
             bodyPrefab = SnakeGrow.Instance != null ? SnakeGrow.Instance.BodyPrefab : null;
@@ -842,6 +987,8 @@ public class EnemiesLogic : MonoBehaviour
         Pickup pickup = collision.gameObject.GetComponent<Pickup>() ?? collision.gameObject.GetComponentInParent<Pickup>();
         if (pickup != null)
         {
+            if (TotalCubeCount >= maxCubes) return;
+
             float distToHead = Vector3.Distance(head.position, pickup.transform.position);
             if (distToHead <= 0.6f)
             {
@@ -1078,6 +1225,8 @@ public class EnemiesLogic : MonoBehaviour
         Pickup pickup = otherObj.GetComponent<Pickup>() ?? otherObj.GetComponentInParent<Pickup>();
         if (pickup != null)
         {
+            if (TotalCubeCount >= maxCubes) return;
+
             float distToHead = Vector3.Distance(head.position, pickup.transform.position);
             if (distToHead <= 0.6f)
             {

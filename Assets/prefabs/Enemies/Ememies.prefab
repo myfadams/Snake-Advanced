@@ -15227,6 +15227,7 @@ MonoBehaviour:
   hoverSpeed: 2
   passiveDurationRange: {x: 3, y: 5}
   roamDurationRange: {x: 4, y: 8}
+  maxCubes: 5
   bodyPrefab: {fileID: 396630054247602656, guid: ad4977fe5e17ca847b9319f9f13c1d54, type: 3}
   segmentSpacing: 0.35
   useObstacleAvoidance: 1
