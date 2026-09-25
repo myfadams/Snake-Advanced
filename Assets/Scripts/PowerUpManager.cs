@@ -620,6 +620,24 @@ public class PowerUpManager : MonoBehaviour
             }
         }
 
+        // Distance check against active enemies
+        if (EnemyManager.Instance != null && EnemyManager.Instance.ActiveEnemies != null)
+        {
+            var enemies = EnemyManager.Instance.ActiveEnemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                EnemiesLogic enemy = enemies[i];
+                if (enemy == null || enemy.Head == null) continue;
+
+                Vector3 diff = candidate - enemy.Head.position;
+                diff.y = 0f;
+                if (diff.sqrMagnitude < 2.5f * 2.5f)
+                {
+                    return false;
+                }
+            }
+        }
+
         return true;
     }
 

@@ -190,6 +190,8 @@ public class PowerUp : MonoBehaviour
         {
             ResolveAndApplyColor();
         }
+
+        IgnoreCollisionsWithEnemies();
     }
 
     private void Update()
@@ -214,6 +216,7 @@ public class PowerUp : MonoBehaviour
         timeOutOfView = 0f;
 
         ApplyGlowColor(glowColor);
+        IgnoreCollisionsWithEnemies();
     }
 
     /// <summary>
@@ -352,9 +355,18 @@ public class PowerUp : MonoBehaviour
     {
         if (collected || other == null) return;
 
+        // Enemies cannot interact with power-ups or use them at all
+        if (other.CompareTag("SnakeEnemyHead") || other.CompareTag("SnakeEnemyBody") || other.CompareTag("SnakeEnemy") ||
+            other.GetComponent<EnemiesLogic>() != null || 
+            other.GetComponentInParent<EnemiesLogic>() != null || 
+            other.transform.root.GetComponentInChildren<EnemiesLogic>() != null)
+        {
+            return;
+        }
+
         // Verify if the collider belongs to the Player snake
         PowerUpPlayer player = other.GetComponentInParent<PowerUpPlayer>();
-        if (player == null && (other.CompareTag("Player") || other.transform.root.CompareTag("Player")))
+        if (player == null && (other.CompareTag("Player") || other.transform.root.CompareTag("Player") || other.CompareTag("SnakeHead") || other.CompareTag("SnakeBody")))
         {
             player = other.transform.root.GetComponentInChildren<PowerUpPlayer>();
         }
@@ -363,6 +375,60 @@ public class PowerUp : MonoBehaviour
         {
             collected = true;
             Collect(player);
+        }
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        OnTriggerEnter(other);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision != null && collision.collider != null)
+        {
+            // Enemies cannot interact with power-ups or use them at all
+            if (collision.collider.CompareTag("SnakeEnemyHead") || collision.collider.CompareTag("SnakeEnemyBody") || collision.collider.CompareTag("SnakeEnemy") ||
+                collision.gameObject.GetComponent<EnemiesLogic>() != null || 
+                collision.gameObject.GetComponentInParent<EnemiesLogic>() != null || 
+                collision.gameObject.transform.root.GetComponentInChildren<EnemiesLogic>() != null)
+            {
+                return;
+            }
+
+            OnTriggerEnter(collision.collider);
+        }
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        if (collision != null && collision.collider != null)
+        {
+            OnCollisionEnter(collision);
+        }
+    }
+
+    /// <summary>
+    /// Explicitly configures PhysX to ignore collisions between this power-up and all enemy colliders,
+    /// preventing any physics blocking, bumping, or interactions.
+    /// </summary>
+    public void IgnoreCollisionsWithEnemies()
+    {
+        Collider[] myColliders = GetComponentsInChildren<Collider>(true);
+        EnemiesLogic[] allEnemies = FindObjectsOfType<EnemiesLogic>();
+        for (int e = 0; e < allEnemies.Length; e++)
+        {
+            if (allEnemies[e] == null) continue;
+            Collider[] enemyColliders = allEnemies[e].GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < myColliders.Length; i++)
+            {
+                if (myColliders[i] == null) continue;
+                for (int j = 0; j < enemyColliders.Length; j++)
+                {
+                    if (enemyColliders[j] == null) continue;
+                    Physics.IgnoreCollision(myColliders[i], enemyColliders[j], true);
+                }
+            }
         }
     }
 

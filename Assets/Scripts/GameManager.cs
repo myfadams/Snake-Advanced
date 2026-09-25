@@ -39,6 +39,9 @@ public class GameManager : MonoBehaviour
     [Tooltip("Points awarded when two body segments merge.")]
     [SerializeField] private int bodyMergeScore = 10;
 
+    [Tooltip("Points awarded when defeating/killing an enemy snake.")]
+    [SerializeField] private int enemyKillScore = 30;
+
     [Header("Score UI")]
     [Tooltip("TextMeshPro text element displaying the current score.")]
     [SerializeField] private TMP_Text scoreText;
@@ -186,6 +189,14 @@ public class GameManager : MonoBehaviour
     public void AddBodyMergeScore()
     {
         AddScore(bodyMergeScore);
+    }
+
+    /// <summary>
+    /// Awards points for defeating/killing an enemy snake (+30 points).
+    /// </summary>
+    public void AddEnemyKillScore()
+    {
+        AddScore(enemyKillScore);
     }
 
     /// <summary>

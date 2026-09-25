@@ -77,6 +77,13 @@ public class EnemiesLogic : MonoBehaviour
     [Range(0.5f, 5f)]
     [SerializeField] private float obstacleAvoidanceWeight = 2.5f;
 
+    [Header("Combat Settings")]
+    [Tooltip("Short regain/cooldown duration in seconds after head-to-head combat before the enemy can attack again, during which it retreats/disengages from the player.")]
+    [SerializeField] private float combatRegainCooldown = 1.5f;
+
+    [Tooltip("Short debounce duration in seconds after consuming a body segment to prevent consuming multiple segments in rapid succession.")]
+    [SerializeField] private float bodyEatCooldown = 0.35f;
+
     [Header("Audio & Effects")]
     [SerializeField] private AudioClip eatSoundClip;
 
@@ -95,6 +102,8 @@ public class EnemiesLogic : MonoBehaviour
     private bool wasPlayerOutsideRadius = false;
     private bool initializedPursuitCheck = false;
     private float combatCooldownTimer = 0f;
+    private float bodyCooldownTimer = 0f;
+    private bool isDefeated = false;
 
     // Single-cube idle sub-state
     private bool isPickupPassive = true;
@@ -134,6 +143,8 @@ public class EnemiesLogic : MonoBehaviour
     public bool DespawnWhenOutOfView { get => despawnWhenOutOfView; set => despawnWhenOutOfView = value; }
     public float MaxTimeOutOfView { get => maxTimeOutOfView; set => maxTimeOutOfView = value; }
     public Camera GameplayCamera { get => gameplayCamera; set => gameplayCamera = value; }
+    public float CombatRegainCooldown { get => combatRegainCooldown; set => combatRegainCooldown = Mathf.Max(0.1f, value); }
+    public float BodyEatCooldown { get => bodyEatCooldown; set => bodyEatCooldown = Mathf.Max(0.05f, value); }
 
     public void SetDurations(Vector2 passiveRange, Vector2 roamRange)
     {
@@ -362,6 +373,11 @@ public class EnemiesLogic : MonoBehaviour
             combatCooldownTimer -= Time.deltaTime;
         }
 
+        if (bodyCooldownTimer > 0f)
+        {
+            bodyCooldownTimer -= Time.deltaTime;
+        }
+
         LocatePlayer();
         UpdatePursuitState();
         ExecuteBehavior();
@@ -480,6 +496,13 @@ public class EnemiesLogic : MonoBehaviour
     /// </summary>
     private void ExecuteBehavior()
     {
+        if (combatCooldownTimer > 0f)
+        {
+            // Regain / Cooldown Retreat: temporarily retreat/disengage away from player
+            RetreatFromPlayer();
+            return;
+        }
+
         if (isChasingPlayer)
         {
             // Chase Player
@@ -556,6 +579,38 @@ public class EnemiesLogic : MonoBehaviour
         {
             RoamFreely();
         }
+    }
+
+    /// <summary>
+    /// Temporarily steers the enemy away from the player during the regain/cooldown period
+    /// after a head-to-head collision, allowing the snakes to separate and head promotion to finalize.
+    /// Uses existing obstacle avoidance and floor surface alignment.
+    /// </summary>
+    private void RetreatFromPlayer()
+    {
+        Transform pHead = (playerSnake != null && playerSnake.HeadSegment != null) ? playerSnake.HeadSegment : playerTransform;
+        Vector3 awayDir;
+
+        if (pHead != null)
+        {
+            awayDir = head.position - pHead.position;
+            awayDir.y = 0f;
+        }
+        else
+        {
+            awayDir = -head.forward;
+            awayDir.y = 0f;
+        }
+
+        if (awayDir.sqrMagnitude < 0.001f)
+        {
+            awayDir = -head.forward;
+            awayDir.y = 0f;
+            if (awayDir.sqrMagnitude < 0.001f) awayDir = Vector3.back;
+        }
+
+        Vector3 retreatTarget = head.position + awayDir.normalized * 6f;
+        MoveAndSteerToward(retreatTarget);
     }
 
     /// <summary>
@@ -640,6 +695,7 @@ public class EnemiesLogic : MonoBehaviour
                 if (IsEnemySegment(hit.transform)) continue;
                 if (IsPlayerSegment(hit.transform)) continue;
                 if (hit.collider.GetComponent<Pickup>() != null || hit.collider.GetComponentInParent<Pickup>() != null) continue;
+                if (hit.collider.GetComponent<PowerUp>() != null || hit.collider.GetComponentInParent<PowerUp>() != null) continue;
 
                 // Hit a valid obstacle (Tree, Bush, Wall, Rock, Hazard...)
                 float weight = 1f - (hit.distance / obstacleAvoidanceDistance);
@@ -727,6 +783,8 @@ public class EnemiesLogic : MonoBehaviour
         for (int i = 0; i < pickups.Length; i++)
         {
             if (pickups[i] == null || !pickups[i].gameObject.activeInHierarchy) continue;
+            // Never seek or interact with power-ups
+            if (pickups[i].GetComponent<PowerUp>() != null || pickups[i].GetComponentInParent<PowerUp>() != null) continue;
 
             float sqDist = (pickups[i].transform.position - head.position).sqrMagnitude;
             if (sqDist < minSqDist)
@@ -812,6 +870,34 @@ public class EnemiesLogic : MonoBehaviour
         return previousPoint;
     }
 
+    /// <summary>
+    /// Trims recorded path history points ahead of newHeadPos when promoting a new head,
+    /// ensuring remaining body segments follow smoothly along the path without glitches.
+    /// </summary>
+    private void TrimPathHistoryAheadOf(Vector3 newHeadPos)
+    {
+        if (pathHistory.Count == 0) return;
+
+        int bestIndex = pathHistory.Count - 1;
+        float minDist = float.MaxValue;
+        for (int i = pathHistory.Count - 1; i >= 0; i--)
+        {
+            float d = Vector3.Distance(pathHistory[i], newHeadPos);
+            if (d < minDist)
+            {
+                minDist = d;
+                bestIndex = i;
+            }
+        }
+
+        if (bestIndex < pathHistory.Count - 1)
+        {
+            pathHistory.RemoveRange(bestIndex + 1, pathHistory.Count - (bestIndex + 1));
+        }
+
+        pathHistory.Add(newHeadPos);
+    }
+
     #region Growth, Merges & Defeat
 
     /// <summary>
@@ -856,6 +942,9 @@ public class EnemiesLogic : MonoBehaviour
         b.SetValue(value);
 
         bodySegments.Add(newSeg);
+
+        // Explicitly ignore collision with all active power-ups in scene
+        IgnorePowerUpCollisionsForSegment(newSeg);
 
         // Immediately stop behaving like a single-cube pickup
         isPickupPassive = false;
@@ -1041,6 +1130,7 @@ public class EnemiesLogic : MonoBehaviour
         if (bodySegments.Count == 0)
         {
             Debug.Log($"[EnemyAI] Enemy '{name}' head consumed with no remaining body segments -> Defeated!");
+            OnKilledByPlayer();
             DestroyEnemy();
             return false;
         }
@@ -1061,20 +1151,23 @@ public class EnemiesLogic : MonoBehaviour
             SnakeGrow.AnimateSegmentDissolveAndDestroyObject(oldHead.gameObject, 0.6f);
         }
 
-        // 2. Update head reference
+        // 2. Trim recorded path history points ahead of new head so remaining segments follow smoothly
+        TrimPathHistoryAheadOf(newHead.position);
+
+        // 3. Update head reference
         head = newHead;
         if (head != null)
         {
             head.tag = "SnakeEnemyHead";
         }
 
-        // 3. Ensure new head has body component
+        // 4. Ensure new head has body component
         if (head.GetComponent<body>() == null)
         {
             head.gameObject.AddComponent<body>();
         }
 
-        // 4. Attach/reparent radius detection collider to the new head
+        // 5. Attach/reparent radius detection collider to the new head
         if (radiusDetection != null && radiusDetection.transform != null)
         {
             radiusDetection.transform.SetParent(head, false);
@@ -1087,21 +1180,25 @@ public class EnemiesLogic : MonoBehaviour
             SetupRadiusDetection();
         }
 
-        // 5. If reduced back to 1 cube total, re-enable pickup-like idle behavior capability
+        // 6. Enter regain/cooldown period and temporarily retreat/disengage from player
+        combatCooldownTimer = combatRegainCooldown;
+
+        // 7. If reduced back to 1 cube total, re-enable pickup-like idle behavior capability
         if (TotalCubeCount == 1)
         {
             isPickupPassive = true;
             idleTimer = Random.Range(passiveDurationRange.x, passiveDurationRange.y);
         }
 
-        // 6. Check for merges with the new head and remaining segments
+        // 8. Check for merges with the new head and remaining segments
         CheckEnemyBodyMerges();
 
         return true;
     }
 
     /// <summary>
-    /// Removes a body segment from the enemy when consumed by a higher-value player.
+    /// Removes a body segment from the enemy when consumed by the player's head (no value comparison).
+    /// Dissolves the segment, reconnects remaining body with no gap, and checks for adjacent merges.
     /// Returns true if segment was removed.
     /// </summary>
     public bool RemoveEnemyBodySegment(Transform segment)
@@ -1128,8 +1225,25 @@ public class EnemiesLogic : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Called when this enemy is defeated/killed by the player.
+    /// Awards 30 points to the player's score via GameManager.
+    /// </summary>
+    public void OnKilledByPlayer()
+    {
+        if (isDefeated) return;
+        isDefeated = true;
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.AddEnemyKillScore();
+        }
+    }
+
     public void DestroyEnemy()
     {
+        OnKilledByPlayer();
+
         if (head != null)
         {
             Collider[] headCols = head.GetComponentsInChildren<Collider>();
@@ -1184,6 +1298,14 @@ public class EnemiesLogic : MonoBehaviour
     {
         if (other == null) return;
 
+        // Enemies cannot interact with power-ups or use them at all
+        if (other.GetComponent<PowerUp>() != null || 
+            other.GetComponentInParent<PowerUp>() != null || 
+            other.transform.root.GetComponentInChildren<PowerUp>() != null)
+        {
+            return;
+        }
+
         // Fallback in case trigger bubbles up to root Rigidbody
         if (other.CompareTag("SnakeHead") || other.CompareTag("SnakeBody") || other.GetComponentInParent<SnakeGrow>() != null)
         {
@@ -1216,8 +1338,15 @@ public class EnemiesLogic : MonoBehaviour
 
     public void HandleCombatCollision(Collision collision)
     {
-        if (collision == null || combatCooldownTimer > 0f) return;
-        if (head == null) return;
+        if (collision == null || head == null) return;
+
+        // Enemies cannot interact with power-ups or use them at all
+        if (collision.gameObject.GetComponent<PowerUp>() != null || 
+            collision.gameObject.GetComponentInParent<PowerUp>() != null || 
+            collision.transform.root.GetComponentInChildren<PowerUp>() != null)
+        {
+            return;
+        }
 
         // 1. Solid pickup collection (if pickup has solid collider)
         Pickup pickup = collision.gameObject.GetComponent<Pickup>() ?? collision.gameObject.GetComponentInParent<Pickup>();
@@ -1280,19 +1409,48 @@ public class EnemiesLogic : MonoBehaviour
         }
 
         // Fallback for collider resolution if contact points were unpopulated
-        if (enemyCol == null || playerCol == null)
+        if (enemyCol == null && collision.collider != null && (collision.collider.CompareTag("SnakeEnemyHead") || collision.collider.CompareTag("SnakeEnemyBody") || IsEnemySegment(collision.collider.transform)))
         {
-            if (collision.collider != null && !collision.collider.isTrigger)
+            enemyCol = collision.collider;
+        }
+        else if (playerCol == null && collision.collider != null && (collision.collider.CompareTag("SnakeHead") || collision.collider.CompareTag("SnakeBody") || IsPlayerSegment(collision.collider.transform)))
+        {
+            playerCol = collision.collider;
+        }
+
+        if (enemyCol == null && head != null && playerCol != null)
+        {
+            float minD = Vector3.Distance(playerCol.transform.position, head.position);
+            enemyCol = head.GetComponentInChildren<Collider>();
+            for (int i = 0; i < bodySegments.Count; i++)
             {
-                if (collision.collider.CompareTag("SnakeEnemyHead") || collision.collider.CompareTag("SnakeEnemyBody") || IsEnemySegment(collision.collider.transform))
+                if (bodySegments[i] == null) continue;
+                float d = Vector3.Distance(playerCol.transform.position, bodySegments[i].position);
+                if (d < minD)
                 {
-                    enemyCol = collision.collider;
-                    playerCol = player.HeadSegment != null ? player.HeadSegment.GetComponentInChildren<Collider>() : null;
+                    minD = d;
+                    enemyCol = bodySegments[i].GetComponentInChildren<Collider>();
                 }
-                else if (collision.collider.CompareTag("SnakeHead") || collision.collider.CompareTag("SnakeBody") || IsPlayerSegment(collision.collider.transform))
+            }
+        }
+
+        if (playerCol == null && player != null && enemyCol != null)
+        {
+            float minD = float.MaxValue;
+            if (player.HeadSegment != null)
+            {
+                minD = Vector3.Distance(enemyCol.transform.position, player.HeadSegment.position);
+                playerCol = player.HeadSegment.GetComponentInChildren<Collider>();
+            }
+            var pSegs = player.Segments;
+            for (int i = 1; i < pSegs.Count; i++)
+            {
+                if (pSegs[i] == null) continue;
+                float d = Vector3.Distance(enemyCol.transform.position, pSegs[i].position);
+                if (d < minD)
                 {
-                    playerCol = collision.collider;
-                    enemyCol = head != null ? head.GetComponentInChildren<Collider>() : null;
+                    minD = d;
+                    playerCol = pSegs[i].GetComponentInChildren<Collider>();
                 }
             }
         }
@@ -1382,78 +1540,118 @@ public class EnemiesLogic : MonoBehaviour
         int pHeadVal = player.HeadValue;
         int eHeadVal = HeadValue;
 
-        // CASE 1: Player Head touches Enemy Head
+        // ========================================================
+        // CASE 1: HEAD-TO-HEAD COLLISION (Value comparison)
+        // ========================================================
         if (isPlayerHead && isEnemyHead)
         {
-            combatCooldownTimer = 0.4f;
+            // Do not allow immediate repeated head collisions while head-switching or cooldown is taking place
+            if (combatCooldownTimer > 0f)
+                return;
+
+            combatCooldownTimer = combatRegainCooldown;
 
             if (pHeadVal >= eHeadVal)
             {
-                Debug.Log($"[Combat] Player Head [{pHeadVal}] touched & consumed Enemy Head [{eHeadVal}]!");
+                // Player wins (playerHeadValue >= enemyHeadValue)
+                Debug.Log($"[Combat] Player Head [{pHeadVal}] >= Enemy Head [{eHeadVal}] -> Player eats Enemy Head!");
                 int consumedVal = eHeadVal;
                 bool enemySurvived = PromoteNewEnemyHead();
                 player.Grow(consumedVal);
+                PlayEnemyEatSound();
+                if (!enemySurvived)
+                {
+                    OnKilledByPlayer();
+                }
             }
             else
             {
-                Debug.Log($"[Combat] Enemy Head [{eHeadVal}] touched & consumed Player Head [{pHeadVal}]!");
+                // Enemy wins (enemyHeadValue > playerHeadValue)
+                Debug.Log($"[Combat] Enemy Head [{eHeadVal}] > Player Head [{pHeadVal}] -> Enemy eats Player Head!");
                 int consumedVal = pHeadVal;
                 bool playerSurvived = player.PromoteNewHead(consumedVal);
                 EnemyGrow(consumedVal);
+                PlayEnemyEatSound();
             }
             return;
         }
 
-        // CASE 2: Player Head touches Enemy Body Segment
+        // ========================================================
+        // CASE 2: PLAYER HEAD TOUCHES ENEMY BODY (NO value comparison)
+        // ========================================================
         if (isPlayerHead && hitEnemyBody != null)
         {
+            if (bodyCooldownTimer > 0f)
+                return;
+
             body eBody = hitEnemyBody.GetComponent<body>() ?? hitEnemyBody.GetComponentInChildren<body>();
             int eBodyVal = eBody != null ? eBody.Value : 2;
 
-            if (pHeadVal >= eBodyVal)
+            Debug.Log($"[Combat] Player Head [{pHeadVal}] touched Enemy Body [{eBodyVal}] -> Player eats it (no value comparison)!");
+            bodyCooldownTimer = bodyEatCooldown;
+
+            bool removed = RemoveEnemyBodySegment(hitEnemyBody);
+            if (removed)
             {
-                Debug.Log($"[Combat] Player Head [{pHeadVal}] touched & consumed Enemy Body Segment [{eBodyVal}]!");
-                combatCooldownTimer = 0.4f;
-                bool removed = RemoveEnemyBodySegment(hitEnemyBody);
-                if (removed)
-                {
-                    player.Grow(eBodyVal);
-                }
-            }
-            else
-            {
-                Debug.Log($"[Combat] Player Head [{pHeadVal}] cannot consume stronger Enemy Body Segment [{eBodyVal}].");
+                player.Grow(eBodyVal);
             }
             return;
         }
 
-        // CASE 3: Enemy Head touches Player Body Segment
+        // ========================================================
+        // CASE 3: ENEMY HEAD TOUCHES PLAYER BODY (NO value comparison)
+        // ========================================================
         if (isEnemyHead && hitPlayerBody != null)
         {
+            // If enemy is currently retreating during head combat cooldown or in body cooldown, ignore
+            if (combatCooldownTimer > 0f || bodyCooldownTimer > 0f)
+                return;
+
             body pBody = hitPlayerBody.GetComponent<body>() ?? hitPlayerBody.GetComponentInChildren<body>();
             int pBodyVal = pBody != null ? pBody.Value : 2;
 
-            if (eHeadVal > pBodyVal)
+            Debug.Log($"[Combat] Enemy Head [{eHeadVal}] touched Player Body [{pBodyVal}] -> Enemy eats it (no value comparison)!");
+            bodyCooldownTimer = bodyEatCooldown;
+
+            bool consumed = player.ConsumeBodySegment(hitPlayerBody, out int consumedValue);
+            if (consumed)
             {
-                Debug.Log($"[Combat] Enemy Head [{eHeadVal}] touched & consumed Player Body Segment [{pBodyVal}]!");
-                combatCooldownTimer = 0.4f;
-                bool damaged = player.TakeBodyDamage(hitPlayerBody);
-                if (damaged)
-                {
-                    EnemyGrow(pBodyVal);
-                }
-            }
-            else
-            {
-                Debug.Log($"[Combat] Enemy Head [{eHeadVal}] cannot consume stronger Player Body Segment [{pBodyVal}].");
+                EnemyGrow(consumedValue > 0 ? consumedValue : pBodyVal);
+                PlayEnemyEatSound();
             }
             return;
+        }
+    }
+
+    private void PlayEnemyEatSound()
+    {
+        AudioClip clip = eatSoundClip;
+        float volume = 1f;
+
+        if (clip == null && SnakeGrow.Instance != null && SnakeGrow.Instance.EatSoundClip != null)
+        {
+            clip = SnakeGrow.Instance.EatSoundClip;
+            volume = SnakeGrow.Instance.EatSoundVolume;
+        }
+
+        if (clip != null)
+        {
+            Vector3 pos = head != null ? head.position : transform.position;
+            AudioSource.PlayClipAtPoint(clip, pos, volume);
         }
     }
 
     public void HandleCombatCollision(GameObject otherObj)
     {
         if (otherObj == null || head == null) return;
+
+        // Enemies cannot interact with power-ups or use them at all
+        if (otherObj.GetComponent<PowerUp>() != null || 
+            otherObj.GetComponentInParent<PowerUp>() != null || 
+            otherObj.transform.root.GetComponentInChildren<PowerUp>() != null)
+        {
+            return;
+        }
 
         // Pickup Collection
         Pickup pickup = otherObj.GetComponent<Pickup>() ?? otherObj.GetComponentInParent<Pickup>();
@@ -1465,6 +1663,31 @@ public class EnemiesLogic : MonoBehaviour
             if (distToHead <= 0.8f)
             {
                 pickup.CollectByEnemy(this);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ensures that PhysX ignores collisions between the given segment's colliders
+    /// and any active PowerUp collectibles in the scene.
+    /// </summary>
+    private void IgnorePowerUpCollisionsForSegment(Transform segment)
+    {
+        if (segment == null) return;
+        Collider[] segCols = segment.GetComponentsInChildren<Collider>(true);
+        PowerUp[] powerUps = FindObjectsOfType<PowerUp>();
+        for (int p = 0; p < powerUps.Length; p++)
+        {
+            if (powerUps[p] == null) continue;
+            Collider[] puCols = powerUps[p].GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < puCols.Length; i++)
+            {
+                if (puCols[i] == null) continue;
+                for (int j = 0; j < segCols.Length; j++)
+                {
+                    if (segCols[j] == null) continue;
+                    Physics.IgnoreCollision(puCols[i], segCols[j], true);
+                }
             }
         }
     }

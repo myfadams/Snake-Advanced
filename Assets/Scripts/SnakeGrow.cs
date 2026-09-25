@@ -554,9 +554,24 @@ public class SnakeGrow : MonoBehaviour
 
         Debug.Log($"[SnakeGrow] Head consumed! Promoting segment '{newHead.name}' to become new Head.");
 
-        // 1. Unparent old head so it can dissolve independently
+        // Preserve DetectBody trigger child by reparenting to newHead before oldHead dissolves
+        if (oldHead != null && newHead != null)
+        {
+            DetectBody detectBody = oldHead.GetComponentInChildren<DetectBody>();
+            if (detectBody != null)
+            {
+                detectBody.transform.SetParent(newHead, false);
+                detectBody.transform.localPosition = new Vector3(-0.0143f, 0f, 0.2935f);
+                detectBody.transform.localRotation = Quaternion.identity;
+            }
+        }
+
+        // 1. Immediately disable all colliders on old head so it cannot trigger duplicate hits while dissolving
         if (oldHead != null)
         {
+            Collider[] cols = oldHead.GetComponentsInChildren<Collider>();
+            foreach (var c in cols) if (c != null) c.enabled = false;
+
             oldHead.SetParent(null);
             AnimateSegmentDissolveAndDestroyObject(oldHead.gameObject, 0.6f);
         }
@@ -569,6 +584,7 @@ public class SnakeGrow : MonoBehaviour
         if (head != null)
         {
             head.tag = "SnakeHead";
+            originalHeadLocalPos = Vector3.zero;
         }
 
         // 4. Ensure new head has body component
@@ -577,7 +593,7 @@ public class SnakeGrow : MonoBehaviour
             head.gameObject.AddComponent<body>();
         }
 
-        // 5. Update PlayerMovement
+        // 5. Update PlayerMovement (repositions root and trims path history ahead of new head)
         if (playerMovement != null)
         {
             playerMovement.SetHead(newHead);
@@ -585,6 +601,57 @@ public class SnakeGrow : MonoBehaviour
 
         UpdateHierarchyOrder();
         NotifyCubesChanged();
+
+        return true;
+    }
+
+    /// <summary>
+    /// Called when an enemy eats a player's body segment in combat.
+    /// Dissolves the target segment using the existing dissolve effect, removes it from the snake,
+    /// and smoothly closes the gap in the remaining body with no gap along the path history.
+    /// Does NOT reduce head value or trigger Game Over unless no cubes remain.
+    /// Returns true if segment was successfully consumed, and outputs the consumed value.
+    /// </summary>
+    public bool ConsumeBodySegment(Transform targetSegment, out int consumedValue)
+    {
+        consumedValue = 0;
+        if (targetSegment == null || isDying) return false;
+
+        // The Head cannot be consumed via ConsumeBodySegment (must use PromoteNewHead)
+        if (targetSegment == head || (segments.Count > 0 && targetSegment == segments[0]))
+            return false;
+
+        int segmentIndex = segments.IndexOf(targetSegment);
+        if (segmentIndex <= 0) return false;
+
+        body segmentBody = targetSegment.GetComponent<body>();
+        consumedValue = segmentBody != null ? segmentBody.Value : 2;
+
+        // 1. Immediately disable all colliders so it cannot trigger duplicate hits
+        Collider[] cols = targetSegment.GetComponentsInChildren<Collider>();
+        foreach (var c in cols) if (c != null) c.enabled = false;
+
+        // 2. Unparent target segment so it dissolves independently
+        targetSegment.SetParent(null);
+
+        // 3. Remove from logical segments list immediately
+        segments.RemoveAt(segmentIndex);
+        UpdateHierarchyOrder();
+        NotifyCubesChanged();
+
+        // 4. Calculate gap to close and sync remaining body segments with PlayerMovement
+        float gapToClose = playerMovement != null ? playerMovement.GetDefaultGap() : 0.3f;
+        int bodyIndex = segmentIndex - 1;
+        SyncMovement();
+
+        // 5. Smoothly close the gap along the movement path so no gap remains
+        if (bodyIndex < segments.Count - 1)
+        {
+            StartCoroutine(AnimateGapClosing(bodyIndex, gapToClose));
+        }
+
+        // 6. Dissolve and destroy the consumed segment using the existing dissolve effect
+        AnimateSegmentDissolveAndDestroyObject(targetSegment.gameObject, 0.6f);
 
         return true;
     }

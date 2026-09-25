@@ -25,14 +25,27 @@ public class PlayerMovement : MonoBehaviour
 
     /// <summary>
     /// Updates the Head transform reference when a head promotion occurs,
-    /// re-indexing body segments and refreshing path history seamlessly.
+    /// seamlessly repositioning the player root, refreshing spacing, and trimming
+    /// path history so remaining segments continue following smoothly.
     /// </summary>
     public void SetHead(Transform newHead)
     {
-        head = newHead;
-        if (head != null)
+        if (newHead != null)
         {
-            groundY = head.position.y;
+            Vector3 worldPos = newHead.position;
+            Quaternion worldRot = newHead.rotation;
+
+            head = newHead;
+            groundY = worldPos.y;
+            groundYInitialized = true;
+
+            // Reposition root Player transform to match new head's position
+            transform.position = worldPos;
+            newHead.localPosition = Vector3.zero;
+            newHead.localRotation = Quaternion.identity;
+            transform.rotation = worldRot;
+
+            TrimHistoryAheadOf(worldPos);
         }
         RefreshBodySegments();
     }
@@ -523,6 +536,35 @@ public class PlayerMovement : MonoBehaviour
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// Trims points from pathHistory that were recorded ahead of newHeadPos
+    /// during previous head leadership, ensuring trailing body segments
+    /// follow the new head along the existing recorded path without looping or jumping.
+    /// </summary>
+    public void TrimHistoryAheadOf(Vector3 newHeadPos)
+    {
+        if (pathHistory.Count == 0) return;
+
+        int bestIndex = pathHistory.Count - 1;
+        float minDist = float.MaxValue;
+        for (int i = pathHistory.Count - 1; i >= 0; i--)
+        {
+            float d = Vector3.Distance(pathHistory[i], newHeadPos);
+            if (d < minDist)
+            {
+                minDist = d;
+                bestIndex = i;
+            }
+        }
+
+        if (bestIndex < pathHistory.Count - 1)
+        {
+            pathHistory.RemoveRange(bestIndex + 1, pathHistory.Count - (bestIndex + 1));
+        }
+
+        pathHistory.Add(newHeadPos);
     }
 
     private void SeedInitialHistory()

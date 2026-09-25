@@ -110,6 +110,14 @@ public class EnemyRadiusDetection : MonoBehaviour
     {
         if (other == null) return;
 
+        // Enemies cannot interact with power-ups or use them at all
+        if (other.GetComponent<PowerUp>() != null || 
+            other.GetComponentInParent<PowerUp>() != null || 
+            other.transform.root.GetComponentInChildren<PowerUp>() != null)
+        {
+            return;
+        }
+
         // Player entered detection radius
         if (other.CompareTag("SnakeHead") || other.CompareTag("SnakeBody") || other.GetComponentInParent<SnakeGrow>() != null)
         {

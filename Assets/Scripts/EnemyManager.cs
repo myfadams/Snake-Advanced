@@ -457,6 +457,7 @@ public class EnemyManager : MonoBehaviour
             }
 
             activeEnemies.Add(logic);
+            IgnoreCollisionsWithPowerUps(logic);
             return true;
         }
 
@@ -578,6 +579,7 @@ public class EnemyManager : MonoBehaviour
                     if (!IsFarEnoughFromOtherEnemies(worldPos) ||
                         !IsFarEnoughFromPlayer(worldPos) ||
                         !IsFarEnoughFromPickups(worldPos) ||
+                        !IsFarEnoughFromPowerUps(worldPos) ||
                         IsPositionBlockedBySceneObject(worldPos))
                     {
                         continue;
@@ -617,6 +619,7 @@ public class EnemyManager : MonoBehaviour
             if (!IsFarEnoughFromOtherEnemies(candidate) ||
                 !IsFarEnoughFromPlayer(candidate) ||
                 !IsFarEnoughFromPickups(candidate) ||
+                !IsFarEnoughFromPowerUps(candidate) ||
                 IsPositionBlockedBySceneObject(candidate))
             {
                 continue;
@@ -758,6 +761,50 @@ public class EnemyManager : MonoBehaviour
             }
         }
         return true;
+    }
+
+    private bool IsFarEnoughFromPowerUps(Vector3 candidate)
+    {
+        if (PowerUpManager.Instance != null && PowerUpManager.Instance.ActivePowerUps != null)
+        {
+            var powerUps = PowerUpManager.Instance.ActivePowerUps;
+            for (int i = 0; i < powerUps.Count; i++)
+            {
+                if (powerUps[i] == null) continue;
+                Vector3 pos = powerUps[i].transform.position;
+                float distSq = (new Vector2(candidate.x, candidate.z) - new Vector2(pos.x, pos.z)).sqrMagnitude;
+                if (distSq < minDistanceFromPickups * minDistanceFromPickups)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Configures PhysX to ignore all collisions between the specified enemy's colliders
+    /// and any active power-up collectibles in the scene.
+    /// </summary>
+    public static void IgnoreCollisionsWithPowerUps(EnemiesLogic enemy)
+    {
+        if (enemy == null) return;
+        Collider[] enemyColliders = enemy.GetComponentsInChildren<Collider>(true);
+        PowerUp[] allPowerUps = FindObjectsOfType<PowerUp>();
+        for (int p = 0; p < allPowerUps.Length; p++)
+        {
+            if (allPowerUps[p] == null) continue;
+            Collider[] puColliders = allPowerUps[p].GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < puColliders.Length; i++)
+            {
+                if (puColliders[i] == null) continue;
+                for (int j = 0; j < enemyColliders.Length; j++)
+                {
+                    if (enemyColliders[j] == null) continue;
+                    Physics.IgnoreCollision(puColliders[i], enemyColliders[j], true);
+                }
+            }
+        }
     }
 
     private bool IsPointVisibleToCamera(Vector3 point, Camera cam)
