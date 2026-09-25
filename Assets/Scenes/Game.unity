@@ -2596,6 +2596,82 @@ MonoBehaviour:
   rearrangeSoundClip: {fileID: 0}
   speedBoostSoundClip: {fileID: 0}
   sfxVolume: 1
+--- !u!1 &1296474109
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1296474110}
+  - component: {fileID: 1296474113}
+  - component: {fileID: 1296474111}
+  - component: {fileID: 1296474114}
+  m_Layer: 0
+  m_Name: collider
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1296474110
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1296474109}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.0143, y: 0, z: 0.2935}
+  m_LocalScale: {x: 0.7881319, y: 1, z: 0.41314545}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1902416835}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &1296474111
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1296474109}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!33 &1296474113
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1296474109}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &1296474114
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1296474109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4286997c9d6bb3b49804b806d4275b95, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DetectBody
+  ignoreFrontSegmentsCount: 3
 --- !u!1 &1484793127
 GameObject:
   m_ObjectHideFlags: 0
@@ -3790,6 +3866,7 @@ MonoBehaviour:
   pickupPrefab: {fileID: 6488912922323857828, guid: 23314c31162695f438a0b61e83598a5a, type: 3}
   eatSoundClip: {fileID: 0}
   eatSoundVolume: 1
+  collectionEffectPrefab: {fileID: 0}
   player: {fileID: 1295684225}
   minActivePickups: 25
   maxActivePickups: 35
@@ -3871,6 +3948,7 @@ MonoBehaviour:
   forwardBiasChance: 0.85
   forwardConeAngle: 55
   floorManager: {fileID: 2060327051}
+  collectionEffectPrefab: {fileID: 0}
   floorHeight: 0
   heightAboveFloor: 0.2
   floorBoundsSize: {x: 40, y: 0, z: 40}
@@ -4277,6 +4355,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: head
       objectReference: {fileID: 0}
+    - target: {fileID: 396630054247602656, guid: afded2319fc81ae449015179153fc60e, type: 3}
+      propertyPath: m_TagString
+      value: SnakeHead
+      objectReference: {fileID: 0}
     - target: {fileID: 5701566600870806743, guid: afded2319fc81ae449015179153fc60e, type: 3}
       propertyPath: m_LocalRotation.w
       value: 0.7071068
@@ -4340,7 +4422,10 @@ PrefabInstance:
     m_RemovedComponents:
     - {fileID: 3764153158996479906, guid: afded2319fc81ae449015179153fc60e, type: 3}
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 8654402615346478908, guid: afded2319fc81ae449015179153fc60e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1296474110}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 2849683188344740370, guid: afded2319fc81ae449015179153fc60e, type: 3}
       insertIndex: -1

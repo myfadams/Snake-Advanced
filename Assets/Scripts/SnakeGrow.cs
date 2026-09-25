@@ -515,9 +515,12 @@ public class SnakeGrow : MonoBehaviour
         return 1 << newLevel;
     }
 
-    private void TriggerDeathOrGameOver()
+    /// <summary>
+    /// Triggers the death / game over condition.
+    /// </summary>
+    public void TriggerDeathOrGameOver()
     {
-        Debug.Log("SnakeGrow: Death condition triggered - Head reduced to minimum (2).");
+        Debug.Log("SnakeGrow: Death condition triggered.");
         OnDeathCondition?.Invoke();
     }
 

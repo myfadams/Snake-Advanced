@@ -683,6 +683,14 @@ public class GameStakes : MonoBehaviour
         postShedMessageCoroutine = null;
     }
 
+    /// <summary>
+    /// Triggers Game Over state and shows the Game Over UI popup.
+    /// </summary>
+    public void TriggerGameOver()
+    {
+        EnterGameOver();
+    }
+
     private void EnterGameOver()
     {
         if (currentState == StakeState.GameOver) return;
