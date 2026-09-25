@@ -813,6 +813,10 @@ MonoBehaviour:
   mapNameText: {fileID: 2108811737}
   maxAnimationDuration: 0.35
   minCountSpeed: 25
+  TimerText: {fileID: 807716918}
+  timerTickDuration: 0.25
+  timerTickScaleMultiplier: 1.08
+  timerTickMinAlpha: 0.75
 --- !u!4 &406514845
 Transform:
   m_ObjectHideFlags: 0
@@ -1640,8 +1644,9 @@ GameObject:
   - component: {fileID: 807716917}
   - component: {fileID: 807716919}
   - component: {fileID: 807716918}
+  - component: {fileID: 807716920}
   m_Layer: 5
-  m_Name: HighScore
+  m_Name: time
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1766,6 +1771,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 807716916}
   m_CullTransparentMesh: 1
+--- !u!225 &807716920
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 807716916}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!1 &808108682
 GameObject:
   m_ObjectHideFlags: 0

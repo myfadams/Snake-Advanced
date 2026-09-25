@@ -21,6 +21,13 @@ public class buttonFunctions : MonoBehaviour
     [SerializeField] private TMP_Text mapNumberText;
     [SerializeField] private TMP_Text mapNameText;
 
+    [Header("High Score Display")]
+    [Tooltip("TextMeshPro text element displaying the high score for the selected map.")]
+    [SerializeField] private TMP_Text highScoreText;
+
+    [Tooltip("Default string displayed when no high score exists for the active map.")]
+    [SerializeField] private string defaultNoScoreText = "Frank Score";
+
     [Header("Manager Reference")]
     [SerializeField] private MapSelectManager mapSelectManager;
 
@@ -49,6 +56,28 @@ public class buttonFunctions : MonoBehaviour
     public GameObject QuitPopupPrefab { get => quitPopupPrefab; set => quitPopupPrefab = value; }
     public string QuitConfirmMessage { get => quitConfirmMessage; set => quitConfirmMessage = value; }
     public GameObject MainMenuUI { get => mainMenuUI; set => mainMenuUI = value; }
+
+    /// <summary>Exposes the high score TMP text component.</summary>
+    public TMP_Text HighScoreText
+    {
+        get => highScoreText;
+        set
+        {
+            highScoreText = value;
+            UpdateHighScoreDisplay();
+        }
+    }
+
+    /// <summary>Exposes the fallback string when no high score exists for a map.</summary>
+    public string DefaultNoScoreText
+    {
+        get => defaultNoScoreText;
+        set
+        {
+            defaultNoScoreText = value;
+            UpdateHighScoreDisplay();
+        }
+    }
 
     public static string lastButtonPressed = "";
 
@@ -110,12 +139,19 @@ public class buttonFunctions : MonoBehaviour
     private void OnEnable()
     {
         MapSelectManager.OnMapIndexChanged += HandleMapIndexChanged;
+        HighScoreManager.OnHighScoreChanged += HandleHighScoreChanged;
         UpdateMapDisplay();
     }
 
     private void OnDisable()
     {
         MapSelectManager.OnMapIndexChanged -= HandleMapIndexChanged;
+        HighScoreManager.OnHighScoreChanged -= HandleHighScoreChanged;
+    }
+
+    private void HandleHighScoreChanged(MapScoreRecord record)
+    {
+        UpdateHighScoreDisplay();
     }
 
     private void HandleMapIndexChanged(int newIndex)
@@ -200,7 +236,7 @@ public class buttonFunctions : MonoBehaviour
     /// </summary>
     public void UpdateMapDisplay()
     {
-        if (mapNumberText == null && mapNameText == null)
+        if (mapNumberText == null && mapNameText == null && highScoreText == null)
         {
             return;
         }
@@ -251,12 +287,98 @@ public class buttonFunctions : MonoBehaviour
 
             mapNameText.text = displayName;
         }
+
+        UpdateHighScoreDisplay();
+    }
+
+    /// <summary>
+    /// Updates the highScoreText UI element with the saved high score for CurrentMapIndex.
+    /// Displays defaultNoScoreText ("Frank Score") if no record exists.
+    /// </summary>
+    public void UpdateHighScoreDisplay()
+    {
+        ResolveHighScoreText();
+
+        if (highScoreText == null)
+        {
+            if (mapSelectManager != null && mapSelectManager.HighScoreText != null)
+            {
+                mapSelectManager.UpdateHighScoreUI();
+            }
+            return;
+        }
+
+        int currentIndex = CurrentMapIndex;
+        string mapName = "";
+        if (mapSelectManager != null)
+        {
+            mapName = mapSelectManager.GetMapName(currentIndex);
+        }
+        else if (MapSelectManager.Instance != null)
+        {
+            mapName = MapSelectManager.Instance.GetMapName(currentIndex);
+        }
+        else
+        {
+            mapName = MapSelectManager.GetMapNameByIndex(currentIndex);
+        }
+
+        MapScoreRecord record = HighScoreManager.GetRecord(currentIndex, mapName);
+        if (record != null && record.highScore > 0)
+        {
+            highScoreText.text = record.highScore.ToString("N0");
+        }
+        else
+        {
+            highScoreText.text = defaultNoScoreText;
+        }
+    }
+
+    /// <summary>
+    /// Fallback resolver to automatically locate highScoreText in the scene if not explicitly assigned.
+    /// </summary>
+    private void ResolveHighScoreText()
+    {
+        if (highScoreText != null) return;
+
+        if (mapSelectManager != null && mapSelectManager.HighScoreText != null)
+        {
+            highScoreText = mapSelectManager.HighScoreText;
+            return;
+        }
+
+        GameObject hsObj = GameObject.Find("highScore");
+        if (hsObj != null)
+        {
+            Transform scoreChild = hsObj.transform.Find("Score");
+            if (scoreChild != null)
+            {
+                highScoreText = scoreChild.GetComponent<TMP_Text>();
+                if (highScoreText != null) return;
+            }
+
+            TMP_Text[] texts = hsObj.GetComponentsInChildren<TMP_Text>(true);
+            for (int i = 0; i < texts.Length; i++)
+            {
+                string tName = texts[i].gameObject.name.ToLowerInvariant();
+                if (tName == "score" || tName.Contains("val") || tName.Contains("num"))
+                {
+                    highScoreText = texts[i];
+                    return;
+                }
+            }
+
+            if (texts.Length > 1)
+            {
+                highScoreText = texts[1];
+            }
+        }
     }
 
     private void Update()
     {
         // Only run display update on instances that are assigned to the map text UI
-        if (mapNumberText != null || mapNameText != null)
+        if (mapNumberText != null || mapNameText != null || highScoreText != null)
         {
             UpdateMapDisplay();
         }

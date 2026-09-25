@@ -290,8 +290,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 43.8}
-  m_SizeDelta: {x: 150, y: 40}
+  m_AnchoredPosition: {x: 3.4, y: 43.2}
+  m_SizeDelta: {x: 190.7719, y: 40}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &46013114
 MonoBehaviour:
@@ -342,10 +342,10 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 23
+  m_fontSize: 32.75
   m_fontSizeBase: 23
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -663,6 +663,8 @@ MonoBehaviour:
   mapRight: MapRight
   mapNumberText: {fileID: 0}
   mapNameText: {fileID: 0}
+  highScoreText: {fileID: 0}
+  defaultNoScoreText: Frank Score
   mapSelectManager: {fileID: 0}
   shedButton: {fileID: 0}
   quitPopupPrefab: {fileID: 0}
@@ -904,6 +906,8 @@ MonoBehaviour:
   groundPrefabMaterial: {fileID: 1598273937232585380, guid: b5076548fc2faf7458f8d0298b0ac28a, type: 3}
   mapNumberText: {fileID: 519377219}
   mapNameText: {fileID: 1010244323}
+  highScoreText: {fileID: 957694105}
+  defaultNoScoreText: Frank Score
   activeMapIndex: 0
 --- !u!1 &330585543
 GameObject:
@@ -1352,10 +1356,16 @@ MonoBehaviour:
   pickupScore: 5
   headMergeScore: 25
   bodyMergeScore: 10
+  enemyKillScore: 30
   scoreText: {fileID: 0}
   mapNameText: {fileID: 0}
   maxAnimationDuration: 0.35
   minCountSpeed: 25
+  TimerText: {fileID: 0}
+  timerTickDuration: 0.25
+  timerTickScaleMultiplier: 1.08
+  timerTickMinAlpha: 0.75
+  gameOverScore: {fileID: 0}
 --- !u!4 &406514845
 Transform:
   m_ObjectHideFlags: 0
@@ -1903,6 +1913,8 @@ MonoBehaviour:
   mapRight: MapRight
   mapNumberText: {fileID: 0}
   mapNameText: {fileID: 0}
+  highScoreText: {fileID: 0}
+  defaultNoScoreText: Frank Score
   mapSelectManager: {fileID: 0}
   shedButton: {fileID: 0}
   quitPopupPrefab: {fileID: 2671484250688487167, guid: ea2d60e9b4c66d646988b6d081e1a883, type: 3}
@@ -2177,6 +2189,8 @@ MonoBehaviour:
   mapRight: MapRight
   mapNumberText: {fileID: 0}
   mapNameText: {fileID: 0}
+  highScoreText: {fileID: 0}
+  defaultNoScoreText: Frank Score
   mapSelectManager: {fileID: 0}
   shedButton: {fileID: 0}
   quitPopupPrefab: {fileID: 0}
@@ -2451,6 +2465,8 @@ MonoBehaviour:
   mapRight: MapRight
   mapNumberText: {fileID: 519377219}
   mapNameText: {fileID: 1010244323}
+  highScoreText: {fileID: 957694105}
+  defaultNoScoreText: Frank Score
   mapSelectManager: {fileID: 305522581}
   shedButton: {fileID: 0}
   quitPopupPrefab: {fileID: 0}
@@ -2778,7 +2794,7 @@ GameObject:
   - component: {fileID: 957694106}
   - component: {fileID: 957694105}
   m_Layer: 5
-  m_Name: Text (TMP) (1)
+  m_Name: Score
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2801,7 +2817,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: -4.800012}
-  m_SizeDelta: {x: 237.6965, y: 74.8856}
+  m_SizeDelta: {x: 299.5942, y: 103.2382}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &957694105
 MonoBehaviour:
@@ -2823,7 +2839,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 14,200
+  m_text: Frank Score
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
   m_sharedMaterial: {fileID: 9037805962105377079, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
@@ -2850,10 +2866,10 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 60
+  m_fontSize: 52.7
   m_fontSizeBase: 60
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 1
@@ -3689,6 +3705,8 @@ MonoBehaviour:
   mapRight: MapRight
   mapNumberText: {fileID: 0}
   mapNameText: {fileID: 0}
+  highScoreText: {fileID: 0}
+  defaultNoScoreText: Frank Score
   mapSelectManager: {fileID: 0}
   shedButton: {fileID: 0}
   quitPopupPrefab: {fileID: 0}
@@ -4066,6 +4084,8 @@ MonoBehaviour:
   mapRight: mapLeft
   mapNumberText: {fileID: 519377219}
   mapNameText: {fileID: 1010244323}
+  highScoreText: {fileID: 0}
+  defaultNoScoreText: Frank Score
   mapSelectManager: {fileID: 305522581}
   shedButton: {fileID: 0}
   quitPopupPrefab: {fileID: 0}

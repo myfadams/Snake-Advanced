@@ -193,6 +193,9 @@ public class GameStakes : MonoBehaviour
     /// <summary>The remaining time on the stake countdown.</summary>
     public float CurrentCountdownTimer => currentCountdownTimer;
 
+    /// <summary>The currently active Game Over popup instance (if instantiated/active).</summary>
+    public GameObject ActiveGameOverPopupInstance => activeGameOverPopupInstance;
+
     /// <summary>The maximum snake length triggering the stake warning.</summary>
     public int MaxSnakeLength
     {
@@ -1165,6 +1168,12 @@ public class GameStakes : MonoBehaviour
                 btn.onClick.RemoveListener(QuitToMapSelect);
                 btn.onClick.AddListener(QuitToMapSelect);
             }
+        }
+
+        // Update and animate the final score on the Game Over popup
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.UpdateGameOverScore(activeGameOverPopupInstance);
         }
     }
 

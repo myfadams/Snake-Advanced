@@ -31,6 +31,13 @@ public class MapSelectManager : MonoBehaviour
     [Tooltip("Optional direct reference to the map name display text.")]
     [SerializeField] private TMP_Text mapNameText;
 
+    [Header("High Score Display")]
+    [Tooltip("TextMeshPro text element displaying the high score for the selected map.")]
+    [SerializeField] private TMP_Text highScoreText;
+
+    [Tooltip("Default string displayed when no high score exists for the active map.")]
+    [SerializeField] private string defaultNoScoreText = "Frank Score";
+
     /// <summary>
     /// Static reference to the currently selected map material so any script (e.g. FloorManager or game start) can access it across scenes.
     /// </summary>
@@ -52,6 +59,28 @@ public class MapSelectManager : MonoBehaviour
     {
         get => activeMapIndex;
         set => activeMapIndex = WrapIndex(value);
+    }
+
+    /// <summary>Exposes the high score TMP text component.</summary>
+    public TMP_Text HighScoreText
+    {
+        get => highScoreText;
+        set
+        {
+            highScoreText = value;
+            UpdateHighScoreUI();
+        }
+    }
+
+    /// <summary>Exposes the fallback string when no high score exists for a map.</summary>
+    public string DefaultNoScoreText
+    {
+        get => defaultNoScoreText;
+        set
+        {
+            defaultNoScoreText = value;
+            UpdateHighScoreUI();
+        }
     }
 
     /// <summary>
@@ -82,7 +111,24 @@ public class MapSelectManager : MonoBehaviour
             SelectedMapMaterial = mapMaterials[activeMapIndex];
         }
 
+        ResolveHighScoreText();
         UpdateUI();
+    }
+
+    private void OnEnable()
+    {
+        HighScoreManager.OnHighScoreChanged += HandleHighScoreChanged;
+        UpdateHighScoreUI();
+    }
+
+    private void OnDisable()
+    {
+        HighScoreManager.OnHighScoreChanged -= HandleHighScoreChanged;
+    }
+
+    private void HandleHighScoreChanged(MapScoreRecord record)
+    {
+        UpdateHighScoreUI();
     }
 
     private void Start()
@@ -247,6 +293,66 @@ public class MapSelectManager : MonoBehaviour
         if (mapNameText != null)
         {
             mapNameText.text = GetMapName(activeMapIndex);
+        }
+
+        UpdateHighScoreUI();
+    }
+
+    /// <summary>
+    /// Updates the highScoreText UI element with the saved high score for activeMapIndex.
+    /// Displays defaultNoScoreText ("Frank Score") if no record exists.
+    /// </summary>
+    public void UpdateHighScoreUI()
+    {
+        ResolveHighScoreText();
+
+        if (highScoreText == null) return;
+
+        string mapName = GetMapName(activeMapIndex);
+        MapScoreRecord record = HighScoreManager.GetRecord(activeMapIndex, mapName);
+
+        if (record != null && record.highScore > 0)
+        {
+            highScoreText.text = record.highScore.ToString("N0");
+        }
+        else
+        {
+            highScoreText.text = defaultNoScoreText;
+        }
+    }
+
+    /// <summary>
+    /// Fallback resolver to automatically locate highScoreText in the scene if not explicitly assigned.
+    /// </summary>
+    private void ResolveHighScoreText()
+    {
+        if (highScoreText != null) return;
+
+        GameObject hsObj = GameObject.Find("highScore");
+        if (hsObj != null)
+        {
+            Transform scoreChild = hsObj.transform.Find("Score");
+            if (scoreChild != null)
+            {
+                highScoreText = scoreChild.GetComponent<TMP_Text>();
+                if (highScoreText != null) return;
+            }
+
+            TMP_Text[] texts = hsObj.GetComponentsInChildren<TMP_Text>(true);
+            for (int i = 0; i < texts.Length; i++)
+            {
+                string tName = texts[i].gameObject.name.ToLowerInvariant();
+                if (tName == "score" || tName.Contains("val") || tName.Contains("num"))
+                {
+                    highScoreText = texts[i];
+                    return;
+                }
+            }
+
+            if (texts.Length > 1)
+            {
+                highScoreText = texts[1];
+            }
         }
     }
 

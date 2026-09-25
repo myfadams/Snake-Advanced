@@ -149,7 +149,7 @@ GameObject:
   - component: {fileID: 3598404528667692520}
   - component: {fileID: 3431329077254853639}
   m_Layer: 5
-  m_Name: HighScore
+  m_Name: gameOverScore
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
