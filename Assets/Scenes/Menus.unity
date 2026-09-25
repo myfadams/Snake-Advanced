@@ -5580,7 +5580,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: bin ladl's edition
+  m_text: De ladl's edition
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
   m_sharedMaterial: {fileID: 9037805962105377079, guid: c580e04e6f122754ab66daabc491c1a3, type: 2}
