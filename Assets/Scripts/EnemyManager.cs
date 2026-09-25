@@ -68,10 +68,10 @@ public class EnemyManager : MonoBehaviour
 
     [Header("Spawn Distance & Forward Bias")]
     [Tooltip("Closest an enemy is allowed to spawn to the player (prevents enemies appearing right in the player's face).")]
-    [SerializeField] private float minSpawnDistanceFromPlayer = 6f;
+    [SerializeField] private float minSpawnDistanceFromPlayer = 4.5f;
 
     [Tooltip("Farthest an enemy is allowed to spawn from the player.")]
-    [SerializeField] private float maxSpawnDistanceFromPlayer = 18f;
+    [SerializeField] private float maxSpawnDistanceFromPlayer = 12f;
 
     [Tooltip("Chance that a spawn is placed in the forward cone ahead of the snake (e.g. 0.85 = 85% in front).")]
     [Range(0f, 1f)]
@@ -476,15 +476,137 @@ public class EnemyManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Finds a valid floor spawn position respecting forward bias, distance, camera visibility, and obstacles.
+    /// Finds a guaranteed valid spawn position strictly ON an active floor tile.
+    /// Prioritizes active floors from FloorManager ahead of the player within view.
     /// </summary>
     private bool TryGetValidSpawnPosition(out Vector3 result)
     {
         Camera cam = gameplayCamera != null ? gameplayCamera : Camera.main;
+        Vector3 anchor = player != null ? player.position : floorBoundsCenter;
+        Vector3 forward = GetPlayerForward();
 
-        Vector3 fallback = Vector3.zero;
-        bool hasFallback = false;
+        // ---------------------------------------------------------
+        // STRATEGY A: Direct Selection from Active Floor Tiles (100% Guaranteed on the Floor!)
+        // ---------------------------------------------------------
+        if (floorManager != null && floorManager.ActiveTileCount > 0)
+        {
+            var activeFloors = floorManager.GetActiveFloors();
+            List<Transform> candidateFloors = new List<Transform>();
+            List<Transform> forwardFloors = new List<Transform>();
 
+            // Clamp max distance to the actual spawn radius of FloorManager so we NEVER pick beyond existing tiles!
+            float maxEffectiveDist = Mathf.Min(maxSpawnDistanceFromPlayer, floorManager.SpawnRadius + 1.5f);
+
+            foreach (var floor in activeFloors)
+            {
+                if (floor == null) continue;
+
+                float dist = Vector3.Distance(floor.position, anchor);
+                if (dist >= minSpawnDistanceFromPlayer && dist <= maxEffectiveDist)
+                {
+                    candidateFloors.Add(floor);
+
+                    Vector3 toFloor = floor.position - anchor;
+                    toFloor.y = 0f;
+                    if (Vector3.Angle(forward, toFloor) <= forwardConeAngle)
+                    {
+                        forwardFloors.Add(floor);
+                    }
+                }
+            }
+
+            // Fallback: if no floor met min distance (e.g. few tiles), consider closer floors >= 2.5m
+            if (candidateFloors.Count == 0)
+            {
+                foreach (var floor in activeFloors)
+                {
+                    if (floor == null) continue;
+                    float dist = Vector3.Distance(floor.position, anchor);
+                    if (dist >= 2.5f && dist <= maxEffectiveDist)
+                    {
+                        candidateFloors.Add(floor);
+                    }
+                }
+            }
+
+            if (candidateFloors.Count > 0)
+            {
+                Vector3 fallbackPos = Vector3.zero;
+                bool hasFallback = false;
+
+                for (int attempt = 0; attempt < maxSpawnAttempts; attempt++)
+                {
+                    // Choose floor (forward biased)
+                    Transform chosenFloor;
+                    if (forwardFloors.Count > 0 && Random.value < forwardBiasChance)
+                    {
+                        chosenFloor = forwardFloors[Random.Range(0, forwardFloors.Count)];
+                    }
+                    else
+                    {
+                        chosenFloor = candidateFloors[Random.Range(0, candidateFloors.Count)];
+                    }
+
+                    // Use FloorManager's exact placement logic (strictly within tile bounds, no prop overlap, no obstacle overlap)
+                    if (!floorManager.FindValidFloorPosition(chosenFloor, 0.45f, out Vector2 localPos, out Vector3 worldPos))
+                    {
+                        continue;
+                    }
+
+                    // Raycast down to find top surface of ground collider
+                    RaycastHit[] hits = Physics.RaycastAll(new Vector3(worldPos.x, chosenFloor.position.y + 4f, worldPos.z), Vector3.down, 8f, ~0, QueryTriggerInteraction.Ignore);
+                    float groundY = chosenFloor.position.y;
+                    bool groundConfirmed = false;
+                    for (int h = 0; h < hits.Length; h++)
+                    {
+                        if (hits[h].collider != null && FloorManager.IsGroundOrFloor(hits[h].collider))
+                        {
+                            groundY = hits[h].point.y;
+                            groundConfirmed = true;
+                            break;
+                        }
+                    }
+
+                    if (!groundConfirmed)
+                    {
+                        // No floor collider directly under this candidate - reject!
+                        continue;
+                    }
+
+                    worldPos.y = groundY + heightAboveFloor;
+
+                    if (!IsFarEnoughFromOtherEnemies(worldPos) ||
+                        !IsFarEnoughFromPlayer(worldPos) ||
+                        !IsFarEnoughFromPickups(worldPos) ||
+                        IsPositionBlockedBySceneObject(worldPos))
+                    {
+                        continue;
+                    }
+
+                    if (!hasFallback)
+                    {
+                        fallbackPos = worldPos;
+                        hasFallback = true;
+                    }
+
+                    if (cam == null || IsPointVisibleToCamera(worldPos, cam))
+                    {
+                        result = worldPos;
+                        return true;
+                    }
+                }
+
+                if (hasFallback)
+                {
+                    result = fallbackPos;
+                    return true;
+                }
+            }
+        }
+
+        // ---------------------------------------------------------
+        // STRATEGY B: Raycast Fallback (Used if FloorManager is absent or tiles not ready)
+        // ---------------------------------------------------------
         for (int attempt = 0; attempt < maxSpawnAttempts; attempt++)
         {
             if (!TryGenerateCandidatePosition(out Vector3 candidate))
@@ -500,31 +622,11 @@ public class EnemyManager : MonoBehaviour
                 continue;
             }
 
-            if (!hasFallback)
-            {
-                fallback = candidate;
-                hasFallback = true;
-            }
-
-            if (cam == null)
+            if (cam == null || IsPointVisibleToCamera(candidate, cam))
             {
                 result = candidate;
                 return true;
             }
-
-            // Prefer positions in camera view or ahead of view
-            bool isVisible = IsPointVisibleToCamera(candidate, cam);
-            if (isVisible)
-            {
-                result = candidate;
-                return true;
-            }
-        }
-
-        if (hasFallback)
-        {
-            result = fallback;
-            return true;
         }
 
         result = Vector3.zero;
@@ -532,15 +634,16 @@ public class EnemyManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Generates a candidate position on the floor using forward-biased circular coordinates,
-    /// clamped within floor bounds, and snapped to the floor surface.
+    /// Generates a candidate position on the floor using downward raycasting against confirmed ground colliders.
+    /// Clamped within floor bounds, and rejects any position not supported by a solid floor.
     /// </summary>
     private bool TryGenerateCandidatePosition(out Vector3 candidate)
     {
         Vector3 anchor = player != null ? player.position : floorBoundsCenter;
         Vector3 forward = GetPlayerForward();
 
-        float distance = Random.Range(minSpawnDistanceFromPlayer, maxSpawnDistanceFromPlayer);
+        float maxDist = floorManager != null ? Mathf.Min(maxSpawnDistanceFromPlayer, floorManager.SpawnRadius + 1f) : maxSpawnDistanceFromPlayer;
+        float distance = Random.Range(minSpawnDistanceFromPlayer, maxDist);
 
         Vector2 direction2D;
         if (Random.value < forwardBiasChance)
@@ -566,36 +669,28 @@ public class EnemyManager : MonoBehaviour
         x = Mathf.Clamp(x, minX, maxX);
         z = Mathf.Clamp(z, minZ, maxZ);
 
-        float y = floorHeight + heightAboveFloor;
-
-        // Downward raycast to accurately detect floor surface
-        if (raycastToFloorSurface)
+        // Raycast down to find a REAL ground collider
+        RaycastHit[] hits = Physics.RaycastAll(new Vector3(x, 20f, z), Vector3.down, 35f, ~0, QueryTriggerInteraction.Ignore);
+        bool foundFloor = false;
+        float groundY = floorHeight;
+        for (int i = 0; i < hits.Length; i++)
         {
-            Vector3 rayStart = new Vector3(x, y + 10f, z);
-            if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 25f))
+            if (hits[i].collider != null && FloorManager.IsGroundOrFloor(hits[i].collider))
             {
-                if (hit.collider != null)
-                {
-                    string hitName = hit.collider.name.ToLowerInvariant();
-                    if (hit.collider.CompareTag("Ground") || hitName.Contains("floor") || hitName.Contains("ground"))
-                    {
-                        y = hit.point.y + heightAboveFloor;
-                    }
-                    else
-                    {
-                        candidate = Vector3.zero;
-                        return false;
-                    }
-                }
-            }
-            else
-            {
-                candidate = Vector3.zero;
-                return false;
+                groundY = hits[i].point.y;
+                foundFloor = true;
+                break;
             }
         }
 
-        candidate = new Vector3(x, y, z);
+        // MUST confirm a real floor collider is beneath! If not, REJECT!
+        if (!foundFloor)
+        {
+            candidate = Vector3.zero;
+            return false;
+        }
+
+        candidate = new Vector3(x, groundY + heightAboveFloor, z);
         return true;
     }
 

@@ -86,7 +86,14 @@ public class PickupManager : MonoBehaviour
              "Floor Bounds Center below is used as a fallback anchor point.")]
     [SerializeField] private Transform player;
 
-    public Transform PlayerTransform => player;
+    public Transform PlayerTransform
+    {
+        get
+        {
+            EnsurePlayerReference();
+            return player;
+        }
+    }
     public float FloorHeight => floorHeight;
     public float HeightAboveFloor => heightAboveFloor;
     public Camera GameplayCamera => gameplayCamera;
@@ -203,6 +210,7 @@ public class PickupManager : MonoBehaviour
             return;
         }
         Instance = this;
+        EnsurePlayerReference();
     }
 
     private void OnDestroy()
@@ -210,6 +218,57 @@ public class PickupManager : MonoBehaviour
         if (Instance == this)
         {
             Instance = null;
+        }
+    }
+
+    /// <summary>
+    /// Ensures player and playerMovement references are resolved.
+    /// If not assigned in the Inspector, automatically locates the player in the scene
+    /// via SnakeGrow.Instance, tag "Player", or PlayerMovement.
+    /// </summary>
+    public void EnsurePlayerReference()
+    {
+        if (player == null)
+        {
+            if (SnakeGrow.Instance != null)
+            {
+                player = SnakeGrow.Instance.transform;
+            }
+            else
+            {
+                GameObject playerObj = GameObject.FindWithTag("Player");
+                if (playerObj != null)
+                {
+                    player = playerObj.transform;
+                }
+                else
+                {
+                    PlayerMovement pm = FindObjectOfType<PlayerMovement>();
+                    if (pm != null)
+                    {
+                        player = pm.transform;
+                    }
+                    else
+                    {
+                        SnakeGrow sg = FindObjectOfType<SnakeGrow>();
+                        if (sg != null)
+                        {
+                            player = sg.transform;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (player != null && playerMovement == null)
+        {
+            playerMovement = player.GetComponent<PlayerMovement>() ??
+                             player.GetComponentInChildren<PlayerMovement>() ??
+                             player.GetComponentInParent<PlayerMovement>();
+            if (playerMovement != null)
+            {
+                player = playerMovement.transform;
+            }
         }
     }
 
@@ -228,15 +287,7 @@ public class PickupManager : MonoBehaviour
                               "Make sure GameManager exists and runs its Awake() before this.");
         }
 
-        if (player != null)
-        {
-            playerMovement = player.GetComponent<PlayerMovement>();
-            if (playerMovement == null)
-            {
-                Debug.LogWarning("PickupManager: no PlayerMovement found on the assigned Player Transform; " +
-                                  "pickup values will use Head tier 2 as default.");
-            }
-        }
+        EnsurePlayerReference();
 
         // Spawn initial pickups up to maxActivePickups
         RefillPickups(maxActivePickups);
@@ -245,6 +296,8 @@ public class PickupManager : MonoBehaviour
 
     private void Update()
     {
+        EnsurePlayerReference();
+
         // Clear out references to pickups that were collected or despawned off-screen
         activePickups.RemoveAll(pickup => pickup == null);
 
@@ -323,6 +376,8 @@ public class PickupManager : MonoBehaviour
 
     private bool SpawnPickup()
     {
+        EnsurePlayerReference();
+
         if (!TryGetValidSpawnPosition(out Vector3 spawnPosition))
         {
             return false;
@@ -480,13 +535,21 @@ public class PickupManager : MonoBehaviour
 
     private int GetHeadValue()
     {
+        EnsurePlayerReference();
         if (playerMovement == null && player != null)
         {
-            playerMovement = player.GetComponent<PlayerMovement>();
+            playerMovement = player.GetComponent<PlayerMovement>() ??
+                             player.GetComponentInChildren<PlayerMovement>() ??
+                             player.GetComponentInParent<PlayerMovement>();
         }
 
         if (playerMovement == null || playerMovement.Head == null)
         {
+            if (SnakeGrow.Instance != null && SnakeGrow.Instance.HeadSegment != null)
+            {
+                body b = SnakeGrow.Instance.HeadSegment.GetComponent<body>();
+                if (b != null) return b.Value;
+            }
             return 2;
         }
 
@@ -496,6 +559,7 @@ public class PickupManager : MonoBehaviour
 
     private Vector3 GetPlayerForward()
     {
+        EnsurePlayerReference();
         if (playerMovement != null && playerMovement.Head != null)
         {
             Vector3 fwd = playerMovement.Head.forward;
@@ -509,6 +573,16 @@ public class PickupManager : MonoBehaviour
         if (player != null)
         {
             Vector3 fwd = player.forward;
+            fwd.y = 0f;
+            if (fwd.sqrMagnitude > 0.001f)
+            {
+                return fwd.normalized;
+            }
+        }
+
+        if (SnakeGrow.Instance != null && SnakeGrow.Instance.HeadSegment != null)
+        {
+            Vector3 fwd = SnakeGrow.Instance.HeadSegment.forward;
             fwd.y = 0f;
             if (fwd.sqrMagnitude > 0.001f)
             {
@@ -581,6 +655,7 @@ public class PickupManager : MonoBehaviour
 
     private Vector3 GetRandomPositionNearPlayer()
     {
+        EnsurePlayerReference();
         Vector3 anchor = player != null ? player.position : floorBoundsCenter;
         Vector3 forward = GetPlayerForward();
 

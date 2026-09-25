@@ -125,6 +125,67 @@ public class Pickup : MonoBehaviour
 
         // Default spawn position in case Initialize() isn't called before the first frame.
         spawnPosition = transform.position;
+        ResolvePlayer();
+    }
+
+    private void Start()
+    {
+        ResolvePlayer();
+    }
+
+    /// <summary>
+    /// Resolves player and snakeGrow references if not already assigned.
+    /// Looks up SnakeGrow.Instance, the "Player" tag, or PlayerMovement.
+    /// </summary>
+    public void ResolvePlayer()
+    {
+        if (player == null)
+        {
+            if (SnakeGrow.Instance != null)
+            {
+                player = SnakeGrow.Instance.transform;
+            }
+            else
+            {
+                GameObject playerObj = GameObject.FindWithTag("Player");
+                if (playerObj != null)
+                {
+                    player = playerObj.transform;
+                }
+                else
+                {
+                    PlayerMovement pm = FindObjectOfType<PlayerMovement>();
+                    if (pm != null)
+                    {
+                        player = pm.transform;
+                    }
+                    else
+                    {
+                        SnakeGrow sg = FindObjectOfType<SnakeGrow>();
+                        if (sg != null)
+                        {
+                            player = sg.transform;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (player != null && snakeGrow == null)
+        {
+            snakeGrow = player.GetComponent<SnakeGrow>() ??
+                        player.GetComponentInChildren<SnakeGrow>() ??
+                        player.GetComponentInParent<SnakeGrow>();
+        }
+
+        if (snakeGrow == null && SnakeGrow.Instance != null)
+        {
+            snakeGrow = SnakeGrow.Instance;
+            if (player == null)
+            {
+                player = SnakeGrow.Instance.transform;
+            }
+        }
     }
 
     private void Update()
@@ -137,8 +198,7 @@ public class Pickup : MonoBehaviour
     /// <summary>
     /// Called by PickupManager immediately after instantiating this pickup.
     /// Sets the value it represents, locks in its hover origin, applies its visuals,
-    /// and receives the player reference PickupManager already holds (see the note
-    /// on the `player` field above for why this can't be wired up in the Inspector).
+    /// and receives the player reference PickupManager already holds.
     /// </summary>
     public void Initialize(int assignedValue, Transform playerTransform)
     {
@@ -148,19 +208,12 @@ public class Pickup : MonoBehaviour
         timeOutOfView = 0f;
         ApplyVisuals();
 
+        ResolvePlayer();
+
         if (player == null)
         {
-            Debug.LogWarning($"Pickup '{name}': no player Transform was passed in from PickupManager; " +
-                              "it will never detect collection. Make sure PickupManager's Player field is assigned.");
-            return;
-        }
-
-        snakeGrow = player.GetComponent<SnakeGrow>();
-
-        if (snakeGrow == null)
-        {
-            Debug.LogWarning($"Pickup '{name}': no SnakeGrow component found on the assigned player Transform; " +
-                              "this pickup will be collectible but won't grow the snake.");
+            Debug.LogWarning($"Pickup '{name}': no player Transform was found; " +
+                              "make sure a Player with SnakeGrow exists in the scene.");
         }
     }
 
@@ -245,11 +298,97 @@ public class Pickup : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (!collected && IsPlayer(other))
+        if (collected || other == null) return;
+
+        // 1. Check if collected by Player
+        if (IsPlayer(other))
         {
             collected = true;
             Collect();
+            return;
         }
+
+        // 2. Check if collected by Enemy
+        if (IsEnemyHead(other, out EnemiesLogic enemyLogic))
+        {
+            if (enemyLogic.TotalCubeCount < enemyLogic.MaxCubes)
+            {
+                CollectByEnemy(enemyLogic);
+                return;
+            }
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision != null && collision.collider != null)
+        {
+            OnTriggerEnter(collision.collider);
+        }
+    }
+
+    /// <summary>
+    /// Called when an enemy snake head collects this pickup.
+    /// Grows the enemy, triggers any adjacent merges, plays VFX and sound, and destroys this pickup.
+    /// </summary>
+    public void CollectByEnemy(EnemiesLogic enemyLogic)
+    {
+        if (collected) return;
+        collected = true;
+
+        if (enemyLogic != null)
+        {
+            enemyLogic.EnemyGrow(value);
+        }
+
+        SpawnCollectionEffect();
+
+        // Hide visuals immediately so dissolve effect takes over seamlessly
+        if (bodyRenderer != null) bodyRenderer.enabled = false;
+        if (valueText != null) valueText.enabled = false;
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+
+        // Play spatialized eat sound at pickup location
+        AudioClip clip = eatSoundClip;
+        if (clip == null && SnakeGrow.Instance != null)
+        {
+            clip = SnakeGrow.Instance.EatSoundClip;
+        }
+        if (clip != null)
+        {
+            AudioSource.PlayClipAtPoint(clip, transform.position, eatSoundVolume);
+        }
+
+        Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// Returns true if the collider belongs to an Enemy snake's Head.
+    /// </summary>
+    private bool IsEnemyHead(Collider other, out EnemiesLogic enemyLogic)
+    {
+        enemyLogic = null;
+        if (other == null) return false;
+
+        // Ignore the trigger radius collider child
+        if (string.Equals(other.gameObject.name, "collider", System.StringComparison.OrdinalIgnoreCase) ||
+            other.GetComponent<EnemyRadiusDetection>() != null)
+        {
+            return false;
+        }
+
+        EnemiesLogic logic = other.GetComponentInParent<EnemiesLogic>();
+        if (logic != null)
+        {
+            if (other.CompareTag("SnakeEnemyHead") || (logic.Head != null && (other.transform == logic.Head || other.transform.IsChildOf(logic.Head))))
+            {
+                enemyLogic = logic;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void Collect()
@@ -257,6 +396,11 @@ public class Pickup : MonoBehaviour
         if (GameManager.Instance != null)
         {
             GameManager.Instance.AddPickupScore();
+        }
+
+        if (snakeGrow == null)
+        {
+            ResolvePlayer();
         }
 
         if (snakeGrow != null)
@@ -415,6 +559,29 @@ public class Pickup : MonoBehaviour
     /// </summary>
     private bool IsPlayer(Collider other)
     {
+        if (other == null) return false;
+
+        // 1. Direct tag recognition (instantaneous and independent of player transform reference)
+        if (other.CompareTag("Player") || other.CompareTag("SnakeHead") || other.CompareTag("SnakeBody"))
+        {
+            if (snakeGrow == null)
+            {
+                snakeGrow = other.GetComponentInParent<SnakeGrow>() ?? SnakeGrow.Instance;
+            }
+            return true;
+        }
+
+        // 2. Check if other belongs to a SnakeGrow player instance
+        SnakeGrow sg = other.GetComponentInParent<SnakeGrow>();
+        if (sg != null && (sg == SnakeGrow.Instance || sg.CompareTag("Player")))
+        {
+            if (snakeGrow == null) snakeGrow = sg;
+            return true;
+        }
+
+        // 3. Fallback check against player transform hierarchy
+        ResolvePlayer();
+
         if (player == null)
         {
             return false;

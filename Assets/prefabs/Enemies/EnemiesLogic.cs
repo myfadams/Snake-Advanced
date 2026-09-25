@@ -103,6 +103,10 @@ public class EnemiesLogic : MonoBehaviour
     private Vector3 spawnPosition;
     private EnemyRadiusDetection radiusDetection;
 
+    private Coroutine headPunchCoroutine;
+    private readonly Dictionary<Transform, Coroutine> bodyPunchCoroutines = new Dictionary<Transform, Coroutine>();
+    private readonly Dictionary<Transform, Vector3> originalScales = new Dictionary<Transform, Vector3>();
+
     public float DetectionRadius => detectionRadius;
     public SphereCollider DetectionCollider => radiusDetection != null ? radiusDetection.SphereCollider : null;
 
@@ -221,6 +225,7 @@ public class EnemiesLogic : MonoBehaviour
         }
 
         LocatePlayer();
+        CheckEnemyBodyMerges();
     }
 
     /// <summary>
@@ -287,6 +292,8 @@ public class EnemiesLogic : MonoBehaviour
         {
             bodyPrefab = SnakeGrow.Instance.BodyPrefab;
         }
+
+        CheckEnemyBodyMerges();
     }
 
     private void ResolveHeadAndComponents()
@@ -299,6 +306,32 @@ public class EnemiesLogic : MonoBehaviour
                 h = transform.GetChild(0);
             }
             head = h != null ? h : transform;
+        }
+
+        DiscoverExistingSegments();
+    }
+
+    private void DiscoverExistingSegments()
+    {
+        if (bodySegments.Count > 0) return;
+
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Transform child = transform.GetChild(i);
+            if (child == head) continue;
+            if (string.Equals(child.name, "collider", System.StringComparison.OrdinalIgnoreCase)) continue;
+
+            body b = child.GetComponent<body>();
+            if (child.CompareTag("SnakeEnemyBody") || b != null)
+            {
+                child.tag = "SnakeEnemyBody";
+                bodySegments.Add(child);
+            }
+        }
+
+        if (bodySegments.Count > 0)
+        {
+            isPickupPassive = false;
         }
     }
 
@@ -511,11 +544,9 @@ public class EnemiesLogic : MonoBehaviour
         Pickup nearestPickup = FindNearestPickup();
         if (nearestPickup != null)
         {
-            if (Vector3.Distance(head.position, nearestPickup.transform.position) <= 0.6f)
+            if (Vector3.Distance(head.position, nearestPickup.transform.position) <= 0.7f)
             {
-                int pVal = nearestPickup.Value;
-                EnemyGrow(pVal);
-                Destroy(nearestPickup.gameObject);
+                nearestPickup.CollectByEnemy(this);
                 return;
             }
 
@@ -561,6 +592,28 @@ public class EnemiesLogic : MonoBehaviour
         }
 
         head.position += head.forward * enemySpeed * Time.deltaTime;
+        AlignHeadToGroundSurface();
+    }
+
+    /// <summary>
+    /// Snaps the enemy's head to the floor collider surface elevation so it never sinks or floats in the air.
+    /// </summary>
+    private void AlignHeadToGroundSurface()
+    {
+        if (head == null) return;
+
+        RaycastHit[] hits = Physics.RaycastAll(head.position + Vector3.up * 2f, Vector3.down, 4.5f, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i].collider != null && FloorManager.IsGroundOrFloor(hits[i].collider))
+            {
+                Vector3 pos = head.position;
+                pos.y = hits[i].point.y + 0.18f;
+                head.position = pos;
+                spawnPosition.y = pos.y;
+                break;
+            }
+        }
     }
 
     /// <summary>
@@ -603,6 +656,34 @@ public class EnemiesLogic : MonoBehaviour
                 else avoidanceSteer += (Vector3.Dot(hit.normal, head.right) >= 0 ? head.right : -head.right) * weight;
 
                 break; // Only consider closest obstacle hit per ray angle
+            }
+        }
+
+        // Void / floor edge avoidance: Verify floor exists ahead so enemy never wanders off the floor!
+        Vector3 groundProbe = head.position + currentForward * 1.5f;
+        RaycastHit[] edgeHits = Physics.RaycastAll(groundProbe + Vector3.up * 2f, Vector3.down, 4.5f, ~0, QueryTriggerInteraction.Ignore);
+        bool hasFloorAhead = false;
+        for (int i = 0; i < edgeHits.Length; i++)
+        {
+            if (edgeHits[i].collider != null && FloorManager.IsGroundOrFloor(edgeHits[i].collider))
+            {
+                hasFloorAhead = true;
+                break;
+            }
+        }
+
+        if (!hasFloorAhead)
+        {
+            // Steer strongly away from the void / edge of the map
+            avoidanceSteer -= currentForward * 3.5f;
+            if (playerTransform != null)
+            {
+                Vector3 toPlayer = (playerTransform.position - head.position);
+                toPlayer.y = 0f;
+                if (toPlayer.sqrMagnitude > 0.01f)
+                {
+                    avoidanceSteer += toPlayer.normalized * 2f;
+                }
             }
         }
 
@@ -760,6 +841,13 @@ public class EnemiesLogic : MonoBehaviour
         newSegObj.tag = "SnakeEnemyBody";
         Transform newSeg = newSegObj.transform;
 
+        // Position initial segment behind current tail or head to avoid popping at origin
+        Vector3 spawnPos = (bodySegments.Count > 0 && bodySegments[bodySegments.Count - 1] != null)
+            ? bodySegments[bodySegments.Count - 1].position
+            : (head != null ? head.position - head.forward * segmentSpacing : transform.position);
+        newSeg.position = spawnPos;
+        if (head != null) newSeg.rotation = head.rotation;
+
         body b = newSeg.GetComponent<body>();
         if (b == null)
         {
@@ -772,32 +860,174 @@ public class EnemiesLogic : MonoBehaviour
         // Immediately stop behaving like a single-cube pickup
         isPickupPassive = false;
 
-        // Check for adjacent merges among enemy body segments
+        // Check for adjacent merges among enemy body segments and head
         CheckEnemyBodyMerges();
     }
 
-    private void CheckEnemyBodyMerges()
+    /// <summary>
+    /// Scans the enemy snake from Head to tail and performs adjacent 2048-style merges.
+    /// Supports:
+    /// 1. Head merging with the first body segment (bodySegments[0]) if their values match.
+    /// 2. Adjacent body segment merges (bodySegments[i] with bodySegments[i + 1]).
+    /// 3. Cascading chain merges until no matching adjacent pairs remain.
+    /// Updates total cube count, visually punches the surviving cube, and dissolves the absorbed cube.
+    /// </summary>
+    public void CheckEnemyBodyMerges()
     {
+        // 1. Clean up any destroyed or null references first
+        for (int i = bodySegments.Count - 1; i >= 0; i--)
+        {
+            if (bodySegments[i] == null)
+            {
+                bodySegments.RemoveAt(i);
+            }
+        }
+
+        // 2. Check if Head and the first body segment (bodySegments[0]) have identical values
+        if (head != null && bodySegments.Count > 0)
+        {
+            body headBody = head.GetComponent<body>();
+            if (headBody == null) headBody = head.gameObject.AddComponent<body>();
+
+            body firstSegBody = bodySegments[0] != null ? bodySegments[0].GetComponent<body>() : null;
+
+            if (firstSegBody != null && headBody.Value > 0 && headBody.Value == firstSegBody.Value)
+            {
+                int mergedVal = headBody.Value * 2;
+                headBody.SetValue(mergedVal);
+
+                Transform consumedSeg = bodySegments[0];
+                bodySegments.RemoveAt(0);
+
+                if (consumedSeg != null)
+                {
+                    originalScales.Remove(consumedSeg);
+                    bodyPunchCoroutines.Remove(consumedSeg);
+
+                    consumedSeg.SetParent(null);
+                    Collider[] cols = consumedSeg.GetComponentsInChildren<Collider>();
+                    foreach (var c in cols) if (c != null) c.enabled = false;
+                    SnakeGrow.AnimateSegmentDissolveAndDestroyObject(consumedSeg.gameObject, 0.4f);
+                }
+
+                // If reduced back to 1 cube total, re-enable pickup-like idle behavior capability
+                if (TotalCubeCount == 1 && !isChasingPlayer)
+                {
+                    isPickupPassive = true;
+                    idleTimer = Random.Range(passiveDurationRange.x, passiveDurationRange.y);
+                }
+
+                PlayEnemyMergeSound(true);
+                TriggerScalePunch(head, true);
+
+                // Recurse to handle cascading chain merges (e.g. new head value matches new bodySegments[0])
+                CheckEnemyBodyMerges();
+                return;
+            }
+        }
+
+        // 3. Check for adjacent merges among enemy body segments (body[i] and body[i + 1])
         for (int i = 0; i < bodySegments.Count - 1; i++)
         {
             body b1 = bodySegments[i] != null ? bodySegments[i].GetComponent<body>() : null;
             body b2 = bodySegments[i + 1] != null ? bodySegments[i + 1].GetComponent<body>() : null;
 
-            if (b1 != null && b2 != null && b1.Value == b2.Value)
+            if (b1 != null && b2 != null && b1.Value > 0 && b1.Value == b2.Value)
             {
-                b1.SetValue(b1.Value * 2);
+                int mergedVal = b1.Value * 2;
+                b1.SetValue(mergedVal);
 
                 Transform rear = bodySegments[i + 1];
                 bodySegments.RemoveAt(i + 1);
 
                 if (rear != null)
                 {
+                    originalScales.Remove(rear);
+                    bodyPunchCoroutines.Remove(rear);
+
+                    rear.SetParent(null);
+                    Collider[] cols = rear.GetComponentsInChildren<Collider>();
+                    foreach (var c in cols) if (c != null) c.enabled = false;
                     SnakeGrow.AnimateSegmentDissolveAndDestroyObject(rear.gameObject, 0.4f);
                 }
 
+                PlayEnemyMergeSound(false);
+                if (bodySegments[i] != null)
+                {
+                    TriggerScalePunch(bodySegments[i], false);
+                }
+
+                // Recurse to handle cascading chain merges (which could now also cascade into the head!)
                 CheckEnemyBodyMerges();
-                break;
+                return;
             }
+        }
+    }
+
+    private void PlayEnemyMergeSound(bool isHeadMerge)
+    {
+        AudioClip clip = eatSoundClip;
+        float volume = 1f;
+
+        if (clip == null && SnakeGrow.Instance != null && SnakeGrow.Instance.MergeSoundClip != null)
+        {
+            clip = SnakeGrow.Instance.MergeSoundClip;
+            volume = SnakeGrow.Instance.MergeSoundVolume;
+        }
+
+        if (clip != null)
+        {
+            Vector3 pos = head != null ? head.position : transform.position;
+            AudioSource.PlayClipAtPoint(clip, pos, volume);
+        }
+    }
+
+    private void TriggerScalePunch(Transform target, bool isHead)
+    {
+        if (target == null) return;
+
+        if (isHead)
+        {
+            if (headPunchCoroutine != null) StopCoroutine(headPunchCoroutine);
+            headPunchCoroutine = StartCoroutine(DoScalePunch(target));
+        }
+        else
+        {
+            if (bodyPunchCoroutines.TryGetValue(target, out Coroutine existing) && existing != null)
+            {
+                StopCoroutine(existing);
+            }
+            bodyPunchCoroutines[target] = StartCoroutine(DoScalePunch(target));
+        }
+    }
+
+    private System.Collections.IEnumerator DoScalePunch(Transform target)
+    {
+        if (target == null) yield break;
+
+        if (!originalScales.TryGetValue(target, out Vector3 baseScale))
+        {
+            baseScale = target.localScale;
+            originalScales[target] = baseScale;
+        }
+
+        target.localScale = baseScale;
+        float duration = 0.18f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            if (target == null) yield break;
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            float factor = 1f + 0.22f * Mathf.Sin(t * Mathf.PI);
+            target.localScale = baseScale * factor;
+            yield return null;
+        }
+
+        if (target != null)
+        {
+            target.localScale = baseScale;
         }
     }
 
@@ -864,6 +1094,9 @@ public class EnemiesLogic : MonoBehaviour
             idleTimer = Random.Range(passiveDurationRange.x, passiveDurationRange.y);
         }
 
+        // 6. Check for merges with the new head and remaining segments
+        CheckEnemyBodyMerges();
+
         return true;
     }
 
@@ -888,6 +1121,9 @@ public class EnemiesLogic : MonoBehaviour
             isPickupPassive = true;
             idleTimer = Random.Range(passiveDurationRange.x, passiveDurationRange.y);
         }
+
+        // Check if removing this segment brought two identical values adjacent
+        CheckEnemyBodyMerges();
 
         return true;
     }
@@ -990,11 +1226,9 @@ public class EnemiesLogic : MonoBehaviour
             if (TotalCubeCount >= maxCubes) return;
 
             float distToHead = Vector3.Distance(head.position, pickup.transform.position);
-            if (distToHead <= 0.6f)
+            if (distToHead <= 0.8f)
             {
-                int pVal = pickup.Value;
-                EnemyGrow(pVal);
-                Destroy(pickup.gameObject);
+                pickup.CollectByEnemy(this);
             }
             return;
         }
@@ -1228,11 +1462,9 @@ public class EnemiesLogic : MonoBehaviour
             if (TotalCubeCount >= maxCubes) return;
 
             float distToHead = Vector3.Distance(head.position, pickup.transform.position);
-            if (distToHead <= 0.6f)
+            if (distToHead <= 0.8f)
             {
-                int pVal = pickup.Value;
-                EnemyGrow(pVal);
-                Destroy(pickup.gameObject);
+                pickup.CollectByEnemy(this);
             }
         }
     }

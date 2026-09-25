@@ -4000,8 +4000,8 @@ MonoBehaviour:
   enemyMaxTimeOutOfView: 7
   maxDistanceBehindPlayer: 8
   player: {fileID: 1295684225}
-  minSpawnDistanceFromPlayer: 6
-  maxSpawnDistanceFromPlayer: 18
+  minSpawnDistanceFromPlayer: 4.5
+  maxSpawnDistanceFromPlayer: 12
   forwardBiasChance: 0.85
   forwardConeAngle: 55
   floorManager: {fileID: 2060327051}
