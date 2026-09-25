@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
 /// <summary>
 /// Manages the snake's growth, block values, visually smooth adjacent-value merging,
@@ -89,6 +90,17 @@ public class SnakeGrow : MonoBehaviour
     [Tooltip("Peak scale multiplier for the Head during its damage value reduction pop.")]
     [Range(1.05f, 1.5f)]
     [SerializeField] private float headDamageScaleMultiplier = 1.25f;
+
+    [Header("Death Dissolve Animation")]
+    [Tooltip("Duration in seconds for the player dissolve and fade-out animation when dying.")]
+    [Range(0.5f, 4f)]
+    [SerializeField] private float deathDissolveDuration = 1.6f;
+
+    [Tooltip("Whether to destroy the Player GameObject smoothly after the dissolve animation completes.")]
+    [SerializeField] private bool destroyPlayerAfterDissolve = true;
+
+    public float DeathDissolveDuration { get => deathDissolveDuration; set => deathDissolveDuration = Mathf.Max(0.1f, value); }
+    public bool DestroyPlayerAfterDissolve { get => destroyPlayerAfterDissolve; set => destroyPlayerAfterDissolve = value; }
 
     [Header("Shed Animation & Audio")]
     [Tooltip("Sound played when shedding blocks. The shedding animation duration will automatically match the length of this audio clip.")]
@@ -515,13 +527,220 @@ public class SnakeGrow : MonoBehaviour
         return 1 << newLevel;
     }
 
+    private bool isDying = false;
+
+    /// <summary>Returns true if the snake is currently playing its death dissolve animation.</summary>
+    public bool IsDying => isDying;
+
     /// <summary>
-    /// Triggers the death / game over condition.
+    /// Triggers the death / game over condition, playing the dissolve effect across all head and body segments
+    /// before destroying the player object smoothly.
     /// </summary>
     public void TriggerDeathOrGameOver()
     {
-        Debug.Log("SnakeGrow: Death condition triggered.");
+        if (isDying) return;
+        isDying = true;
+
+        Debug.Log("SnakeGrow: Death condition triggered - playing dissolve animation.");
         OnDeathCondition?.Invoke();
+
+        // Start dissolve and smooth destroy sequence
+        StartCoroutine(AnimateDeathDissolveAndDestroy());
+    }
+
+    /// <summary>
+    /// Coroutine that activates child Dissolve objects, plays particle systems, drives material dissolve properties,
+    /// fades out alpha and scale across the head and body segments, and smoothly destroys the player object.
+    /// </summary>
+    public IEnumerator AnimateDeathDissolveAndDestroy()
+    {
+        // 1. Stop movement immediately
+        PlayerMovement pm = GetComponent<PlayerMovement>();
+        if (pm != null)
+        {
+            pm.enabled = false;
+        }
+
+        // Disable colliders on head and segments to prevent further physics hits
+        Collider[] playerColliders = GetComponentsInChildren<Collider>();
+        foreach (var col in playerColliders)
+        {
+            if (col != null) col.enabled = false;
+        }
+
+        // 2. Gather all segments (Head + Body segments)
+        List<Transform> allSegments = new List<Transform>();
+        if (head != null) allSegments.Add(head);
+        if (segments != null)
+        {
+            foreach (var seg in segments)
+            {
+                if (seg != null && !allSegments.Contains(seg))
+                {
+                    allSegments.Add(seg);
+                }
+            }
+        }
+
+        // Cache initial scales and materials
+        Dictionary<Transform, Vector3> initialScales = new Dictionary<Transform, Vector3>();
+        List<Material> dynamicMaterials = new List<Material>();
+        List<TMP_Text> tmproTexts = new List<TMP_Text>();
+
+        foreach (Transform seg in allSegments)
+        {
+            if (seg == null) continue;
+            initialScales[seg] = seg.localScale;
+
+            // Activate child Dissolve objects or VFX particles
+            Transform[] children = seg.GetComponentsInChildren<Transform>(true);
+            foreach (Transform child in children)
+            {
+                if (child == null || child == seg) continue;
+
+                string nameLower = child.name.ToLowerInvariant();
+                if (nameLower.Contains("dissolve") || nameLower.Contains("vfx") || nameLower.Contains("effect") || nameLower.Contains("ember"))
+                {
+                    child.gameObject.SetActive(true);
+
+                    ParticleSystem[] psArray = child.GetComponentsInChildren<ParticleSystem>(true);
+                    foreach (var ps in psArray)
+                    {
+                        if (ps != null)
+                        {
+                            if (ps.isPlaying)
+                            {
+                                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                            }
+                            var main = ps.main;
+                            main.duration = deathDissolveDuration;
+                            ps.Play();
+                        }
+                    }
+                }
+            }
+
+            // Also check for ParticleSystems directly on the segment
+            ParticleSystem[] directPs = seg.GetComponentsInChildren<ParticleSystem>(true);
+            foreach (var ps in directPs)
+            {
+                if (ps != null && !ps.isPlaying)
+                {
+                    ps.Play();
+                }
+            }
+
+            // Gather Renderers and instantiate unique material instances so asset files are untouched
+            Renderer[] rends = seg.GetComponentsInChildren<Renderer>(true);
+            foreach (var rend in rends)
+            {
+                if (rend == null || !rend.enabled || rend is ParticleSystemRenderer) continue;
+
+                Material[] mats = rend.materials; // Accessing .materials creates dynamic instances for dissolving
+                foreach (var m in mats)
+                {
+                    if (m != null && !dynamicMaterials.Contains(m))
+                    {
+                        dynamicMaterials.Add(m);
+                    }
+                }
+            }
+
+            // Gather TMPro text elements
+            TMP_Text[] texts = seg.GetComponentsInChildren<TMP_Text>(true);
+            foreach (var txt in texts)
+            {
+                if (txt != null && !tmproTexts.Contains(txt))
+                {
+                    tmproTexts.Add(txt);
+                }
+            }
+        }
+
+        // Shader property IDs commonly used for dissolve / cutoff effects
+        int cutoffID = Shader.PropertyToID("_Cutoff");
+        int cutoffLowerID = Shader.PropertyToID("_cutoff");
+        int dissolveID = Shader.PropertyToID("_Dissolve");
+        int dissolveAmountID = Shader.PropertyToID("_DissolveAmount");
+        int amountID = Shader.PropertyToID("_Amount");
+        int progressID = Shader.PropertyToID("_Progress");
+
+        float elapsed = 0f;
+        while (elapsed < deathDissolveDuration)
+        {
+            yield return null;
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / deathDissolveDuration);
+
+            // Animate shader dissolve properties on all segment materials
+            foreach (Material m in dynamicMaterials)
+            {
+                if (m == null) continue;
+
+                if (m.HasProperty(cutoffID)) m.SetFloat(cutoffID, progress);
+                if (m.HasProperty(cutoffLowerID)) m.SetFloat(cutoffLowerID, progress);
+                if (m.HasProperty(dissolveID)) m.SetFloat(dissolveID, progress);
+                if (m.HasProperty(dissolveAmountID)) m.SetFloat(dissolveAmountID, progress);
+                if (m.HasProperty(amountID)) m.SetFloat(amountID, progress);
+                if (m.HasProperty(progressID)) m.SetFloat(progressID, progress);
+            }
+
+            // Fade TMPro text alpha
+            foreach (TMP_Text txt in tmproTexts)
+            {
+                if (txt == null) continue;
+                Color c = txt.color;
+                c.a = Mathf.Lerp(1f, 0f, progress);
+                txt.color = c;
+            }
+
+            // In the second half of the dissolve, smoothly shrink segment scales down
+            if (progress > 0.5f)
+            {
+                float shrinkT = (progress - 0.5f) / 0.5f;
+                float shrinkEase = Mathf.SmoothStep(0f, 1f, shrinkT);
+
+                foreach (Transform seg in allSegments)
+                {
+                    if (seg != null && initialScales.TryGetValue(seg, out Vector3 startScale))
+                    {
+                        seg.localScale = Vector3.Lerp(startScale, Vector3.zero, shrinkEase);
+                    }
+                }
+            }
+        }
+
+        // Final cutoff enforcement
+        foreach (Material m in dynamicMaterials)
+        {
+            if (m == null) continue;
+            if (m.HasProperty(cutoffID)) m.SetFloat(cutoffID, 1f);
+            if (m.HasProperty(cutoffLowerID)) m.SetFloat(cutoffLowerID, 1f);
+            if (m.HasProperty(dissolveID)) m.SetFloat(dissolveID, 1f);
+            if (m.HasProperty(dissolveAmountID)) m.SetFloat(dissolveAmountID, 1f);
+            if (m.HasProperty(amountID)) m.SetFloat(amountID, 1f);
+            if (m.HasProperty(progressID)) m.SetFloat(progressID, 1f);
+        }
+
+        // 3. Smoothly destroy body segments and Player object
+        if (destroyPlayerAfterDissolve)
+        {
+            foreach (Transform seg in segments)
+            {
+                if (seg != null && seg != head)
+                {
+                    Destroy(seg.gameObject);
+                }
+            }
+            segments.Clear();
+
+            // Destroy Player object smoothly
+            Destroy(gameObject, 0.05f);
+        }
+        else
+        {
+            gameObject.SetActive(false);
+        }
     }
 
     /// <summary>

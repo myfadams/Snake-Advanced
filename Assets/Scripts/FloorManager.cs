@@ -281,7 +281,7 @@ public class FloorManager : MonoBehaviour
 
     private void Update()
     {
-        if (!initialized) return;
+        if (!initialized || referenceTransform == null) return;
 
         Vector3 refPos = referenceTransform.position;
         Vector3 camPos = cameraTransform != null ? cameraTransform.position : refPos;
@@ -384,6 +384,8 @@ public class FloorManager : MonoBehaviour
     /// </summary>
     private void UpdateGrid()
     {
+        if (referenceTransform == null) return;
+
         Vector3 refPos = referenceTransform.position;
         bool hasCam = includeCamera && cameraTransform != null;
         Vector3 camPos = hasCam ? cameraTransform.position : refPos;

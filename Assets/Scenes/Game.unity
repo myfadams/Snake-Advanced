@@ -1627,6 +1627,70 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!1001 &749377181
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0.5256814
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.202
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1.38
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2049074671173479617, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2288921464901731300, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: m_Name
+      value: Ememies
+      objectReference: {fileID: 0}
+    - target: {fileID: 2437519801749849841, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      propertyPath: enmemySpeed
+      value: 0.7
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7709845908870662128, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 0}
+  m_SourcePrefab: {fileID: 100100000, guid: b2b9b50744712b0418c9fd7eed0fa218, type: 3}
 --- !u!1 &808108682
 GameObject:
   m_ObjectHideFlags: 0
@@ -3820,6 +3884,19 @@ MonoBehaviour:
   propVerticalOffset: 0
   environmentMode: 0
   manualEnvironment: 0
+  useCategorySpawning: 1
+  treeSpawnProbability: 0.9
+  minTreesPerTile: 2
+  maxTreesPerTile: 4
+  bushSpawnProbability: 0.8
+  minBushesPerTile: 1
+  maxBushesPerTile: 3
+  anyPropSpawnProbability: 0.85
+  minAnyPropsPerTile: 2
+  maxAnyPropsPerTile: 4
+  envPropsSpawnProbability: 0.8
+  minEnvPropsPerTile: 1
+  maxEnvPropsPerTile: 3
   mapMaterials: []
   referenceTransform: {fileID: 1295684225}
   cameraTransform: {fileID: 330585546}
@@ -4443,3 +4520,4 @@ SceneRoots:
   - {fileID: 406514845}
   - {fileID: 302179811}
   - {fileID: 992477367}
+  - {fileID: 749377181}

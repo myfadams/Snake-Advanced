@@ -709,13 +709,20 @@ public class GameStakes : MonoBehaviour
             activeWarningUIInstance.SetActive(false);
         }
 
-        // Stop player gameplay
+        // Stop player gameplay & play death dissolve animation
         if (snakeGrow != null)
         {
-            PlayerMovement pm = snakeGrow.GetComponent<PlayerMovement>();
-            if (pm != null)
+            if (!snakeGrow.IsDying)
             {
-                pm.enabled = false;
+                snakeGrow.TriggerDeathOrGameOver();
+            }
+            else
+            {
+                PlayerMovement pm = snakeGrow.GetComponent<PlayerMovement>();
+                if (pm != null)
+                {
+                    pm.enabled = false;
+                }
             }
         }
 
