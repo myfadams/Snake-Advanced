@@ -85,6 +85,46 @@ public class FloorManager : MonoBehaviour
     [Tooltip("Manual environment type used if Environment Mode is set to Manual.")]
     [SerializeField] private MapEnvironmentType manualEnvironment = MapEnvironmentType.ClassicChess;
 
+    [Header("Category Prop Spawning & Probabilities")]
+    [Tooltip("Enable category-based prop spawning with custom counts and probabilities for Trees, Bushes, Any Objects, etc.")]
+    [SerializeField] private bool useCategorySpawning = true;
+
+    [Header("Trees Spawning")]
+    [Tooltip("Probability (0.0 to 1.0) that Trees will spawn on a floor tile.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float treeSpawnProbability = 0.9f;
+    [Tooltip("Minimum number of trees to spawn per floor tile if probability check passes.")]
+    [SerializeField] private int minTreesPerTile = 2;
+    [Tooltip("Maximum number of trees to spawn per floor tile if probability check passes.")]
+    [SerializeField] private int maxTreesPerTile = 4;
+
+    [Header("Bushes Spawning")]
+    [Tooltip("Probability (0.0 to 1.0) that Bushes will spawn on a floor tile.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float bushSpawnProbability = 0.8f;
+    [Tooltip("Minimum number of bushes to spawn per floor tile if probability check passes.")]
+    [SerializeField] private int minBushesPerTile = 1;
+    [Tooltip("Maximum number of bushes to spawn per floor tile if probability check passes.")]
+    [SerializeField] private int maxBushesPerTile = 3;
+
+    [Header("Any Objects Spawning")]
+    [Tooltip("Probability (0.0 to 1.0) that Any Objects (AnyProp) will spawn on a floor tile.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float anyPropSpawnProbability = 0.85f;
+    [Tooltip("Minimum number of Any Objects to spawn per floor tile if probability check passes.")]
+    [SerializeField] private int minAnyPropsPerTile = 2;
+    [Tooltip("Maximum number of Any Objects to spawn per floor tile if probability check passes.")]
+    [SerializeField] private int maxAnyPropsPerTile = 4;
+
+    [Header("Environment-Specific Props (Cars / Chess / Sci-Fi)")]
+    [Tooltip("Probability (0.0 to 1.0) that map-specific environment props (Cars, Chess pieces, Sci-Fi structures) will spawn on a floor tile.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float envPropsSpawnProbability = 0.8f;
+    [Tooltip("Minimum number of environment-specific props to spawn per floor tile.")]
+    [SerializeField] private int minEnvPropsPerTile = 1;
+    [Tooltip("Maximum number of environment-specific props to spawn per floor tile.")]
+    [SerializeField] private int maxEnvPropsPerTile = 3;
+
     public MaterialsList MaterialsList { get => materialsList; set => materialsList = value; }
     public int MinimumProps { get => minimumProps; set => minimumProps = value; }
     public int MaximumProps { get => maximumProps; set => maximumProps = value; }
@@ -93,6 +133,24 @@ public class FloorManager : MonoBehaviour
     public float PropVerticalOffset { get => propVerticalOffset; set => propVerticalOffset = value; }
     public EnvironmentMode EnvironmentModeSetting { get => environmentMode; set => environmentMode = value; }
     public MapEnvironmentType ManualEnvironment { get => manualEnvironment; set => manualEnvironment = value; }
+
+    public bool UseCategorySpawning { get => useCategorySpawning; set => useCategorySpawning = value; }
+
+    public float TreeSpawnProbability { get => treeSpawnProbability; set => treeSpawnProbability = Mathf.Clamp01(value); }
+    public int MinTreesPerTile { get => minTreesPerTile; set => minTreesPerTile = Mathf.Max(0, value); }
+    public int MaxTreesPerTile { get => maxTreesPerTile; set => maxTreesPerTile = Mathf.Max(minTreesPerTile, value); }
+
+    public float BushSpawnProbability { get => bushSpawnProbability; set => bushSpawnProbability = Mathf.Clamp01(value); }
+    public int MinBushesPerTile { get => minBushesPerTile; set => minBushesPerTile = Mathf.Max(0, value); }
+    public int MaxBushesPerTile { get => maxBushesPerTile; set => maxBushesPerTile = Mathf.Max(minBushesPerTile, value); }
+
+    public float AnyPropSpawnProbability { get => anyPropSpawnProbability; set => anyPropSpawnProbability = Mathf.Clamp01(value); }
+    public int MinAnyPropsPerTile { get => minAnyPropsPerTile; set => minAnyPropsPerTile = Mathf.Max(0, value); }
+    public int MaxAnyPropsPerTile { get => maxAnyPropsPerTile; set => maxAnyPropsPerTile = Mathf.Max(minAnyPropsPerTile, value); }
+
+    public float EnvPropsSpawnProbability { get => envPropsSpawnProbability; set => envPropsSpawnProbability = Mathf.Clamp01(value); }
+    public int MinEnvPropsPerTile { get => minEnvPropsPerTile; set => minEnvPropsPerTile = Mathf.Max(0, value); }
+    public int MaxEnvPropsPerTile { get => maxEnvPropsPerTile; set => maxEnvPropsPerTile = Mathf.Max(minEnvPropsPerTile, value); }
 
     [Header("Map Material Sync")]
     [Tooltip("Optional list of map materials if you want FloorManager to look up by index from PlayerPrefs as a fallback when testing the Game scene directly.")]
@@ -555,6 +613,22 @@ public class FloorManager : MonoBehaviour
         if (maximumProps < minimumProps) maximumProps = minimumProps;
         if (minimumPropDistance < 0f) minimumPropDistance = 0f;
         if (edgeMargin < 0f) edgeMargin = 0f;
+
+        treeSpawnProbability = Mathf.Clamp01(treeSpawnProbability);
+        minTreesPerTile = Mathf.Max(0, minTreesPerTile);
+        if (maxTreesPerTile < minTreesPerTile) maxTreesPerTile = minTreesPerTile;
+
+        bushSpawnProbability = Mathf.Clamp01(bushSpawnProbability);
+        minBushesPerTile = Mathf.Max(0, minBushesPerTile);
+        if (maxBushesPerTile < minBushesPerTile) maxBushesPerTile = minBushesPerTile;
+
+        anyPropSpawnProbability = Mathf.Clamp01(anyPropSpawnProbability);
+        minAnyPropsPerTile = Mathf.Max(0, minAnyPropsPerTile);
+        if (maxAnyPropsPerTile < minAnyPropsPerTile) maxAnyPropsPerTile = minAnyPropsPerTile;
+
+        envPropsSpawnProbability = Mathf.Clamp01(envPropsSpawnProbability);
+        minEnvPropsPerTile = Mathf.Max(0, minEnvPropsPerTile);
+        if (maxEnvPropsPerTile < minEnvPropsPerTile) maxEnvPropsPerTile = minEnvPropsPerTile;
     }
 
     // --- environment prop spawning ---------------------------------------
@@ -623,12 +697,14 @@ public class FloorManager : MonoBehaviour
             case MapEnvironmentType.ClassicChess:
                 AddCategoryIfValid(list, materialsList.chessEnvironmentProps);
                 AddCategoryIfValid(list, materialsList.treeProps);
+                AddCategoryIfValid(list, materialsList.bushes);
                 AddCategoryIfValid(list, materialsList.AnyProp);
                 break;
 
             case MapEnvironmentType.AbandonedWasteland:
                 AddCategoryIfValid(list, materialsList.carProps);
                 AddCategoryIfValid(list, materialsList.treeProps);
+                AddCategoryIfValid(list, materialsList.bushes);
                 AddCategoryIfValid(list, materialsList.AnyProp);
                 break;
 
@@ -639,6 +715,7 @@ public class FloorManager : MonoBehaviour
 
             case MapEnvironmentType.ForestNature:
                 AddCategoryIfValid(list, materialsList.treeProps);
+                AddCategoryIfValid(list, materialsList.bushes);
                 AddCategoryIfValid(list, materialsList.AnyProp);
                 break;
         }
@@ -903,10 +980,17 @@ public class FloorManager : MonoBehaviour
 
     /// <summary>
     /// Spawns random environment props for the specified floor tile based on the active map's allowed categories.
+    /// Supports both category-specific spawning (trees, bushes, any objects, env props) and legacy global spawning.
     /// </summary>
     public void SpawnPropsForFloor(Transform floor)
     {
         if (floor == null || materialsList == null) return;
+
+        if (useCategorySpawning)
+        {
+            SpawnCategoryPropsForFloor(floor);
+            return;
+        }
 
         int minP = Mathf.Max(0, minimumProps);
         int maxP = Mathf.Max(minP, maximumProps);
@@ -925,50 +1009,109 @@ public class FloorManager : MonoBehaviour
 
         for (int i = 0; i < propsToSpawn; i++)
         {
-            // 1. Randomly choose from allowed categories for this map
             GameObject[] chosenCategory = allowedCategories[Random.Range(0, allowedCategories.Count)];
-            GameObject prefab = GetRandomValidPrefab(chosenCategory);
-            if (prefab == null) continue;
-
-            float candidateRadius = GetPrefabRadius(prefab);
-
-            if (!FindValidFloorPosition(floor, candidateRadius, out Vector2 validLocalPos, out Vector3 candidateWorld))
-            {
-                continue;
-            }
-
-            // 3. Instantiate prop parented directly to the floor
-            GameObject propInstance = Instantiate(prefab, floor);
-            propInstance.transform.localScale = prefab.transform.localScale;
-            propInstance.transform.localPosition = new Vector3(validLocalPos.x, 0f, validLocalPos.y);
-
-            // Maintain the prefab's intrinsic orientation, ensuring chess pieces stand upright (-90 X)
-            Quaternion baseRotation = prefab.transform.localRotation;
-            if (IsChessPiece(prefab, propInstance))
-            {
-                // Chess pieces from 3ds Max / Z-up raw meshes require -90 deg rotation around X to stand upright
-                if (Mathf.Abs(Quaternion.Angle(baseRotation, Quaternion.identity)) < 1f ||
-                    (Mathf.Abs(baseRotation.eulerAngles.x) < 1f && Mathf.Abs(baseRotation.eulerAngles.z) < 1f))
-                {
-                    baseRotation = Quaternion.Euler(-90f, 0f, 0f);
-                }
-            }
-
-            // Spin randomly around the floor's vertical Y axis while preserving the base orientation
-            Quaternion randomY = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-            propInstance.transform.localRotation = randomY * baseRotation;
-
-            // Align prop vertical position so its lowest bounding point sits directly on the floor surface
-            AlignPropToFloorSurface(propInstance, floor);
-
-            propInstance.AddComponent<FloorPropMarker>();
-
-            // Immediately sync physics transforms so subsequent overlap checks in the same frame see this new collider
-            Physics.SyncTransforms();
-
-            // Record this prop in our active tracking list
-            RegisterPlacedObject(floor, propInstance.transform.position, candidateRadius);
+            SpawnSinglePropFromCategory(floor, chosenCategory);
         }
+    }
+
+    /// <summary>
+    /// Spawns props category by category (Trees, Bushes, Any Objects, Environment Props)
+    /// using their individual min/max counts and spawn probabilities.
+    /// </summary>
+    private void SpawnCategoryPropsForFloor(Transform floor)
+    {
+        MapEnvironmentType env = GetCurrentEnvironmentType();
+
+        // 1. Environment-Specific Props (Cars, Chess pieces, Sci-Fi structures)
+        if (env == MapEnvironmentType.ClassicChess)
+        {
+            TrySpawnCategoryProps(floor, materialsList.chessEnvironmentProps, envPropsSpawnProbability, minEnvPropsPerTile, maxEnvPropsPerTile);
+        }
+        else if (env == MapEnvironmentType.AbandonedWasteland)
+        {
+            TrySpawnCategoryProps(floor, materialsList.carProps, envPropsSpawnProbability, minEnvPropsPerTile, maxEnvPropsPerTile);
+        }
+        else if (env == MapEnvironmentType.NeonSciFi)
+        {
+            TrySpawnCategoryProps(floor, materialsList.ScifiProps, envPropsSpawnProbability, minEnvPropsPerTile, maxEnvPropsPerTile);
+        }
+
+        // 2. Trees (ForestNature, Wasteland, Chess, or if prefabs present)
+        if (env != MapEnvironmentType.NeonSciFi || (materialsList.treeProps != null && materialsList.treeProps.Length > 0))
+        {
+            TrySpawnCategoryProps(floor, materialsList.treeProps, treeSpawnProbability, minTreesPerTile, maxTreesPerTile);
+        }
+
+        // 3. Bushes
+        if (env != MapEnvironmentType.NeonSciFi || (materialsList.bushes != null && materialsList.bushes.Length > 0))
+        {
+            TrySpawnCategoryProps(floor, materialsList.bushes, bushSpawnProbability, minBushesPerTile, maxBushesPerTile);
+        }
+
+        // 4. Any Objects (AnyProp)
+        if (env != MapEnvironmentType.NeonSciFi || (materialsList.AnyProp != null && materialsList.AnyProp.Length > 0))
+        {
+            TrySpawnCategoryProps(floor, materialsList.AnyProp, anyPropSpawnProbability, minAnyPropsPerTile, maxAnyPropsPerTile);
+        }
+    }
+
+    /// <summary>
+    /// Attempts to spawn props from a specific category array on a floor tile
+    /// based on its spawn probability and count range.
+    /// </summary>
+    private void TrySpawnCategoryProps(Transform floor, GameObject[] categoryPrefabs, float probability, int minCount, int maxCount)
+    {
+        if (categoryPrefabs == null || categoryPrefabs.Length == 0) return;
+        if (Random.value > probability) return;
+
+        int countToSpawn = Random.Range(minCount, maxCount + 1);
+        if (countToSpawn <= 0) return;
+
+        for (int i = 0; i < countToSpawn; i++)
+        {
+            SpawnSinglePropFromCategory(floor, categoryPrefabs);
+        }
+    }
+
+    /// <summary>
+    /// Instantiates and places a single non-overlapping prop from a category array onto the floor tile.
+    /// </summary>
+    private bool SpawnSinglePropFromCategory(Transform floor, GameObject[] categoryPrefabs)
+    {
+        GameObject prefab = GetRandomValidPrefab(categoryPrefabs);
+        if (prefab == null) return false;
+
+        float candidateRadius = GetPrefabRadius(prefab);
+
+        if (!FindValidFloorPosition(floor, candidateRadius, out Vector2 validLocalPos, out Vector3 candidateWorld))
+        {
+            return false;
+        }
+
+        GameObject propInstance = Instantiate(prefab, floor);
+        propInstance.transform.localScale = prefab.transform.localScale;
+        propInstance.transform.localPosition = new Vector3(validLocalPos.x, 0f, validLocalPos.y);
+
+        Quaternion baseRotation = prefab.transform.localRotation;
+        if (IsChessPiece(prefab, propInstance))
+        {
+            if (Mathf.Abs(Quaternion.Angle(baseRotation, Quaternion.identity)) < 1f ||
+                (Mathf.Abs(baseRotation.eulerAngles.x) < 1f && Mathf.Abs(baseRotation.eulerAngles.z) < 1f))
+            {
+                baseRotation = Quaternion.Euler(-90f, 0f, 0f);
+            }
+        }
+
+        Quaternion randomY = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        propInstance.transform.localRotation = randomY * baseRotation;
+
+        AlignPropToFloorSurface(propInstance, floor);
+        propInstance.AddComponent<FloorPropMarker>();
+
+        Physics.SyncTransforms();
+        RegisterPlacedObject(floor, propInstance.transform.position, candidateRadius);
+
+        return true;
     }
 
     /// <summary>

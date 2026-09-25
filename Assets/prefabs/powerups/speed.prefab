@@ -10009,7 +10009,7 @@ MonoBehaviour:
   overrideGlowColor: {r: 0, g: 0.85, b: 1, a: 1}
   useOverrideColor: 0
   worldScaleMultiplier: 1.35
-  hoverHeight: 0.12
+  hoverHeight: 0.07
   hoverSpeed: 2
   rotationSpeed: 60
   magnetRadius: 10
